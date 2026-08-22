@@ -139,6 +139,10 @@ fun ClockFace(
 ) {
     when (style) {
         ClockStyle.FLIP -> {
+            // Both cards take the same colour. Sampling two points on the wheel
+            // gave the hour and the minutes visibly different hues, which reads
+            // as a fault rather than a choice. Deliberate multi-colour and ombre
+            // belong in their own setting, not as a side effect of rainbow.
             fun cardColour(step: Int): Color = when {
                 !rainbow -> digitColor
                 rainbowStatic -> Color.hsv(
@@ -153,15 +157,13 @@ fun ClockFace(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(du(20)),
             ) {
-                // Steps 0 and 2 so the two cards span the same slice
-                // of the wheel the four LED digits do.
                 FlipCard(
         hh, corner = meridiem, reducedMotion = reducedMotion,
         digitColor = cardColour(0), cardColor = surfaceColor,
                 )
                 FlipCard(
         mm, corner = null, reducedMotion = reducedMotion,
-        digitColor = cardColour(2), cardColor = surfaceColor,
+        digitColor = cardColour(0), cardColor = surfaceColor,
                 )
             }
         }
