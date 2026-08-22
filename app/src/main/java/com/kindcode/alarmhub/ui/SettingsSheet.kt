@@ -96,9 +96,9 @@ fun SettingsSheet(
                 style = display.clockStyle,
                 digitColor = Color(display.digitColor),
                 surfaceColor = Color(display.backgroundColor),
-                pageColor = if (display.clockStyle == ClockStyle.SEGMENT) {
-                    Color(display.backgroundColor)
-                } else DC.bg,
+                pageColor = if (display.clockStyle == ClockStyle.FLIP) {
+                    DC.bg
+                } else Color(display.backgroundColor),
                 rainbow = display.digitRainbow,
                 rainbowPhase = rainbowPhase,
                 rainbowSpread = display.rainbowSpread,
@@ -120,6 +120,9 @@ fun SettingsSheet(
                     }
                     Chip("LED", display.clockStyle == ClockStyle.SEGMENT, accent, hPad = 30, fontSize = 17) {
                         onChange(display.copy(clockStyle = ClockStyle.SEGMENT))
+                    }
+                    Chip("Neon", display.clockStyle == ClockStyle.NEON, accent, hPad = 30, fontSize = 17) {
+                        onChange(display.copy(clockStyle = ClockStyle.NEON))
                     }
                 }
 

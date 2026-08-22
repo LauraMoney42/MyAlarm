@@ -344,7 +344,7 @@ private fun HubRoot(
     // In LED mode the chosen colour is the whole screen. In flip mode it is the
     // flaps, and the page behind them stays dark so the cards still read as
     // physical objects sitting on a surface.
-    val pageColor = if (display.clockStyle == ClockStyle.SEGMENT) surface else DC.bg
+    val pageColor = if (display.clockStyle == ClockStyle.FLIP) DC.bg else surface
 
     BoxWithConstraints(Modifier.fillMaxSize().background(pageColor)) {
         val wPx = with(density) { maxWidth.toPx() }

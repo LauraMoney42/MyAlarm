@@ -176,6 +176,17 @@ fun ClockFace(
             rainbowSpread = rainbowSpread,
             rainbowStatic = rainbowStatic,
         )
+
+        ClockStyle.NEON -> NeonFace(
+            hh = hh,
+            mm = mm,
+            meridiem = meridiem,
+            digitColor = digitColor,
+            rainbow = rainbow,
+            rainbowPhase = rainbowPhase,
+            rainbowSpread = rainbowSpread,
+            rainbowStatic = rainbowStatic,
+        )
     }
 
 }
@@ -233,6 +244,77 @@ fun ClockFacePreview(
                     rainbow = rainbow, rainbowPhase = rainbowPhase,
                     rainbowSpread = rainbowSpread, rainbowStatic = rainbowStatic,
                     reducedMotion = reducedMotion,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The neon face: the time as lit glass tubes.
+ *
+ * Sized off width like the LED face, for the same reason: four characters plus
+ * a colon is a wide thing, and fitting to height alone runs it off the panel.
+ */
+@Composable
+private fun NeonFace(
+    hh: String,
+    mm: String,
+    meridiem: String?,
+    digitColor: Color,
+    rainbow: Boolean,
+    rainbowPhase: Float,
+    rainbowSpread: Float,
+    rainbowStatic: Boolean,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+
+        val chars = listOf(hh[0].toString(), hh[1].toString(), ":", mm[0].toString(), mm[1].toString())
+
+        // Character advance is roughly 0.60em for digits and 0.30em for the
+        // colon, plus the meridiem block when there is one.
+        // Width is what binds here. A font's digits carry side bearings that
+        // drawn segments do not, so the advance and the padding are kept tight
+        // to bring this face up to the size of the other two.
+        val emUnits = 4 * 0.57f + 0.30f + 5 * 0.05f + (if (meridiem == null) 0f else 0.42f)
+        val fitWidth = (maxWidth.value * 0.94f) / emUnits
+        val fitHeight = maxHeight.value * 0.78f
+        val em = minOf(fitWidth, fitHeight)
+
+        val size = with(LocalDensity.current) { em.dp.toSp() }
+        val stroke = with(LocalDensity.current) { (em * 0.055f).dp.toPx() }
+        val gap = (em * 0.025f).dp
+
+        fun colourFor(index: Int): Color = when {
+            !rainbow -> digitColor
+            rainbowStatic -> Color.hsv(
+                (hueOf(digitColor) + index * rainbowSpread) % 360f, 0.90f, 1f,
+            )
+            else -> Color.hsv(
+                ((rainbowPhase * 360f) + index * rainbowSpread) % 360f, 0.90f, 1f,
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (meridiem != null) {
+                NeonChar(
+                    char = meridiem,
+                    color = colourFor(0),
+                    size = with(LocalDensity.current) { (em * 0.26f).dp.toSp() },
+                    strokeCore = stroke * 0.30f,
+                    modifier = Modifier.padding(end = gap * 5),
+                )
+            }
+            chars.forEachIndexed { index, ch ->
+                // The colon is not a digit, so it does not take a step of its
+                // own on the colour wheel; it borrows the hour's.
+                val step = if (index < 2) index else index - 1
+                NeonChar(
+                    char = ch,
+                    color = colourFor(step),
+                    size = size,
+                    strokeCore = stroke,
+                    modifier = Modifier.padding(horizontal = gap),
                 )
             }
         }

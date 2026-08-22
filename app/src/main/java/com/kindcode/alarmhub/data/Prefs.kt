@@ -68,7 +68,7 @@ data class Alarm(
 }
 
 /** Which face the clock wears. */
-enum class ClockStyle { FLIP, SEGMENT }
+enum class ClockStyle { FLIP, SEGMENT, NEON }
 
 data class DisplayConfig(
     val use24Hour: Boolean = false,
