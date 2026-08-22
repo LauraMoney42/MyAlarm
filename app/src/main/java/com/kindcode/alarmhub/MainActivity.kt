@@ -382,6 +382,20 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                                     dragging = true
                                     dragProgress = raw.coerceIn(0f, 1f)
                                 } else {
+                                    // A panel only closes on a drag along its own
+                                    // axis. Without this, a mostly-sideways drag
+                                    // on an alarm row still fed the close gesture,
+                                    // and the panel started sliding away instead
+                                    // of the row revealing its bin.
+                                    val horizontalPanel =
+                                        view == View.WEATHER || view == View.CALENDAR
+                                    val alongAxis = if (horizontalPanel) {
+                                        abs(acc.x) > abs(acc.y)
+                                    } else {
+                                        abs(acc.y) > abs(acc.x)
+                                    }
+                                    if (!alongAxis) return@detectDragGestures
+
                                     val back = when (view) {
                                         View.WEATHER -> acc.x / (wPx * 0.5f)
                                         View.CALENDAR -> -acc.x / (wPx * 0.5f)
