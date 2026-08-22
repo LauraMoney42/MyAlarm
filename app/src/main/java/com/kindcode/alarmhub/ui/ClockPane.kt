@@ -269,21 +269,25 @@ private fun NeonFace(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
 
-        val chars = listOf(hh[0].toString(), hh[1].toString(), ":", mm[0].toString(), mm[1].toString())
+        val chars = listOf(hh[0], hh[1], ':', mm[0], mm[1])
+        val merChars = meridiem?.toCharArray()?.toList().orEmpty()
 
-        // Character advance is roughly 0.60em for digits and 0.30em for the
-        // colon, plus the meridiem block when there is one.
-        // Width is what binds here. A font's digits carry side bearings that
-        // drawn segments do not, so the advance and the padding are kept tight
-        // to bring this face up to the size of the other two.
-        val emUnits = 4 * 0.57f + 0.30f + 5 * 0.05f + (if (meridiem == null) 0f else 0.42f)
-        val fitWidth = (maxWidth.value * 0.94f) / emUnits
-        val fitHeight = maxHeight.value * 0.78f
-        val em = minOf(fitWidth, fitHeight)
+        // Width-bound, like the LED face. Advances come from the glyph set so
+        // the colon takes the narrow slot it deserves.
+        val gapUnits = 0.10f
+        val merUnits = if (merChars.isEmpty()) 0f else
+            merChars.sumOf { NeonGlyphs.advance(it).toDouble() }.toFloat() * 0.34f +
+                merChars.size * gapUnits * 0.34f + 0.34f
+        val bodyUnits = chars.sumOf { NeonGlyphs.advance(it).toDouble() }.toFloat() +
+            chars.size * gapUnits
+        val unitW = (maxWidth.value * 0.94f) / (bodyUnits + merUnits)
+        val unitH = maxHeight.value * 0.80f / 1.62f
+        val w = minOf(unitW, unitH)
 
-        val size = with(LocalDensity.current) { em.dp.toSp() }
-        val stroke = with(LocalDensity.current) { (em * 0.055f).dp.toPx() }
-        val gap = (em * 0.025f).dp
+        val glyphW = w.dp
+        val glyphH = (w * 1.62f).dp
+        val tube = (w * 0.115f).dp
+        val gap = (w * gapUnits * 0.5f).dp
 
         fun colourFor(index: Int): Color = when {
             !rainbow -> digitColor
@@ -296,24 +300,29 @@ private fun NeonFace(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (meridiem != null) {
-                NeonChar(
-                    char = meridiem,
-                    color = colourFor(0),
-                    size = with(LocalDensity.current) { (em * 0.26f).dp.toSp() },
-                    strokeCore = stroke * 0.30f,
-                    modifier = Modifier.padding(end = gap * 5),
-                )
+            if (merChars.isNotEmpty()) {
+                merChars.forEach { ch ->
+                    NeonChar(
+                        char = ch,
+                        color = colourFor(0),
+                        width = glyphW * 0.34f,
+                        height = glyphH * 0.34f,
+                        tube = tube * 0.42f,
+                        modifier = Modifier.padding(horizontal = gap * 0.34f),
+                    )
+                }
+                Spacer(Modifier.width(gap * 4))
             }
             chars.forEachIndexed { index, ch ->
-                // The colon is not a digit, so it does not take a step of its
-                // own on the colour wheel; it borrows the hour's.
+                // The colon is not a digit, so it borrows the hour's place on
+                // the colour wheel rather than taking a step of its own.
                 val step = if (index < 2) index else index - 1
                 NeonChar(
                     char = ch,
                     color = colourFor(step),
-                    size = size,
-                    strokeCore = stroke,
+                    width = glyphW * NeonGlyphs.advance(ch),
+                    height = glyphH,
+                    tube = tube,
                     modifier = Modifier.padding(horizontal = gap),
                 )
             }
