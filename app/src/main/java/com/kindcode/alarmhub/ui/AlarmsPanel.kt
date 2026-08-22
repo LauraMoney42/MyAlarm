@@ -73,6 +73,7 @@ fun AlarmsPanel(
     onClose: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Alarm?>(null) }
+    var confirmDelete by remember { mutableStateOf<Alarm?>(null) }
 
     Box(Modifier.fillMaxSize().background(DC.panel)) {
         Column(Modifier.fillMaxSize()) {
@@ -100,18 +101,20 @@ fun AlarmsPanel(
                     .padding(horizontal = du(64)),
             ) {
                 alarms.forEach { alarm ->
-                    SwipeToDelete(
-                        onDelete = { onChange(alarms.filterNot { it.id == alarm.id }) },
-                        onTap = { editing = alarm },
-                    ) {
-                        AlarmRow(alarm, accent, use24Hour) {
+                    AlarmRow(
+                        alarm = alarm,
+                        accent = accent,
+                        use24Hour = use24Hour,
+                        onEdit = { editing = alarm },
+                        onDelete = { confirmDelete = alarm },
+                        onToggle = {
                             onChange(
                                 alarms.map {
                                     if (it.id == alarm.id) it.copy(enabled = !it.enabled) else it
                                 }
                             )
-                        }
-                    }
+                        },
+                    )
                 }
                 Spacer(Modifier.height(du(40)))
             }
@@ -150,11 +153,13 @@ fun AlarmsPanel(
                         }
                         .padding(start = du(22), end = du(28), top = du(16), bottom = du(16)),
                 ) {
-                    Box(
-                        Modifier
-                            .size(du(18))
-                            .clip(RoundedCornerShape(50))
-                            .border(du(2).coerceAtLeast(1.dp), Color(0xFF0B0B0C), RoundedCornerShape(50))
+                    Text(
+                        "+",
+                        style = TextStyle(
+                            color = Color(0xFF0B0B0C),
+                            fontSize = su(30),
+                            fontWeight = FontWeight.Light,
+                        ),
                     )
                     Text(
                         "New Alarm",
@@ -165,6 +170,19 @@ fun AlarmsPanel(
         }
 
         CloseGrip(vertical = false, modifier = Modifier.align(Alignment.TopCenter)) { onClose() }
+
+        confirmDelete?.let { doomed ->
+            ConfirmDelete(
+                alarm = doomed,
+                accent = accent,
+                use24Hour = use24Hour,
+                onCancel = { confirmDelete = null },
+                onConfirm = {
+                    onChange(alarms.filterNot { it.id == doomed.id })
+                    confirmDelete = null
+                },
+            )
+        }
 
         editing?.let { draft ->
             AlarmEditor(
@@ -197,6 +215,8 @@ private fun AlarmRow(
     alarm: Alarm,
     accent: Color,
     use24Hour: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onToggle: () -> Unit,
 ) {
     val on = alarm.enabled
@@ -205,6 +225,7 @@ private fun AlarmRow(
         Row(
             Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onEdit)
                 .padding(horizontal = du(8), vertical = du(22)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -262,6 +283,17 @@ private fun AlarmRow(
             }
             Box(Modifier.width(du(92)), contentAlignment = Alignment.CenterEnd) {
                 Toggle(on, accent, onToggle = onToggle)
+            }
+            // A visible target beats a hidden gesture. The swipe kept losing to
+            // the panel's own drag, so deleting is a button you can see.
+            Box(
+                Modifier
+                    .padding(start = du(28))
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onDelete)
+                    .padding(du(14)),
+            ) {
+                BinIcon(size = du(40))
             }
         }
         Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.09f)))
@@ -638,90 +670,6 @@ private fun RepeatArrow(glyph: String, onClick: () -> Unit) {
     }
 }
 
-/**
- * Swipe an alarm left to reveal a bin, then either keep going to delete or tap
- * the bin. Matches the gesture people already know from iOS mail and alarms.
- *
- * The drag consumes from the first press so it never reaches the panel
- * navigation underneath, which would otherwise read a horizontal swipe here as
- * a request to change screens.
- */
-@Composable
-private fun SwipeToDelete(
-    onDelete: () -> Unit,
-    onTap: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    val density = LocalDensity.current
-    val revealPx = with(density) { du(150).toPx() }
-    val commitPx = with(density) { du(520).toPx() }
-    val offset = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    val remove by rememberUpdatedState(onDelete)
-    val tap by rememberUpdatedState(onTap)
-
-    Box(Modifier.fillMaxWidth()) {
-        // The bin only earns its space once the row has actually moved.
-        if (offset.value < -2f) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .padding(vertical = du(8))
-                    .clip(RoundedCornerShape(du(12)))
-                    .background(Color(0xFF7A2B24)),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Box(
-                    Modifier
-                        .padding(end = du(46))
-                        .clip(RoundedCornerShape(50))
-                        .clickable { remove() }
-                        .padding(du(16)),
-                ) {
-                    BinIcon(size = du(44))
-                }
-            }
-        }
-
-        Box(
-            Modifier
-                .offset { IntOffset(offset.value.roundToInt(), 0) }
-                // detectHorizontalDragGestures rather than a hand-rolled loop:
-                // it owns touch slop and consumption properly, which a manual
-                // pointer loop here did not, so the drag never started.
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            when {
-                                offset.value <= -commitPx -> remove()
-                                offset.value <= -revealPx / 2f ->
-                                    scope.launch { offset.animateTo(-revealPx) }
-                                else -> scope.launch { offset.animateTo(0f) }
-                            }
-                        },
-                        onDragCancel = { scope.launch { offset.animateTo(0f) } },
-                    ) { change, dragAmount ->
-                        change.consume()
-                        scope.launch {
-                            offset.snapTo(
-                                (offset.value + dragAmount)
-                                    .coerceIn(-commitPx * 1.2f, 0f)
-                            )
-                        }
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures {
-                        // A tap closes the bin if it is showing, and otherwise
-                        // opens the alarm for editing.
-                        if (offset.value < -2f) scope.launch { offset.animateTo(0f) }
-                        else tap()
-                    }
-                }
-        ) { content() }
-    }
-}
-
 /** Drawn rather than a glyph, so it cannot fall back to a missing-font box. */
 @Composable
 private fun BinIcon(size: androidx.compose.ui.unit.Dp) {
@@ -760,5 +708,83 @@ private fun ClearIcon(size: androidx.compose.ui.unit.Dp) {
             Offset(d - inset, inset), Offset(inset, d - inset),
             strokeWidth = d * 0.09f,
         )
+    }
+}
+
+/**
+ * Deleting an alarm is quiet and permanent: nothing rings, and you only find
+ * out on the morning it fails to. Worth one tap of friction.
+ */
+@Composable
+private fun ConfirmDelete(
+    alarm: Alarm,
+    accent: Color,
+    use24Hour: Boolean,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val hour = if (use24Hour) alarm.hour else (alarm.hour % 12).let { if (it == 0) 12 else it }
+    val time = "$hour:${"%02d".format(alarm.minute)}" +
+        if (use24Hour) "" else if (alarm.hour < 12) " AM" else " PM"
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF050506).copy(alpha = 0.86f))
+            .pointerInput(Unit) { detectTapGestures { onCancel() } },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .width(du(720))
+                .clip(RoundedCornerShape(du(22)))
+                .background(Color(0xFF141418))
+                .border(du(1).coerceAtLeast(1.dp), DC.ink(0.1f), RoundedCornerShape(du(22)))
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(horizontal = du(48), vertical = du(40)),
+            verticalArrangement = Arrangement.spacedBy(du(22)),
+        ) {
+            Text(
+                "Delete this alarm?",
+                style = TextStyle(color = DC.ink, fontSize = su(34)),
+            )
+            Text(
+                "$time · ${alarm.label.ifBlank { alarm.whenLabel() }}",
+                style = TextStyle(color = DC.ink(0.55f), fontSize = su(22)),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = du(10)),
+                horizontalArrangement = Arrangement.spacedBy(du(16), Alignment.End),
+            ) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(du(40)))
+                        .border(
+                            du(1).coerceAtLeast(1.dp),
+                            DC.ink(0.28f),
+                            RoundedCornerShape(du(40)),
+                        )
+                        .clickable(onClick = onCancel)
+                        .padding(horizontal = du(38), vertical = du(18)),
+                ) {
+                    Text(
+                        "No, keep it",
+                        style = TextStyle(color = DC.ink(0.8f), fontSize = su(21)),
+                    )
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(du(40)))
+                        .background(Color(0xFFC4463A))
+                        .clickable(onClick = onConfirm)
+                        .padding(horizontal = du(38), vertical = du(18)),
+                ) {
+                    Text(
+                        "Yes, delete",
+                        style = TextStyle(color = Color.White, fontSize = su(21)),
+                    )
+                }
+            }
+        }
     }
 }
