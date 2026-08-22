@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -265,6 +266,12 @@ private fun GradientSlider(
     onValue: (Float) -> Unit,
     track: @Composable () -> Unit,
 ) {
+    // pointerInput(Unit) remembers its block from the first composition, so a
+    // callback captured directly inside it keeps writing an old snapshot of the
+    // settings back. That is what made changing one slider silently revert
+    // another setting. rememberUpdatedState keeps the latest one in reach.
+    val emit by rememberUpdatedState(onValue)
+
     var widthPx by remember { mutableIntStateOf(1) }
     val shape = RoundedCornerShape(50)
     val thumbPx = with(LocalDensity.current) { du(THUMB).toPx() }
@@ -281,12 +288,12 @@ private fun GradientSlider(
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    onValue((down.position.x / widthPx).coerceIn(0f, 1f))
+                    emit((down.position.x / widthPx).coerceIn(0f, 1f))
                     while (true) {
                         val change = awaitPointerEvent().changes.firstOrNull() ?: break
                         if (!change.pressed) break
                         change.consume()
-                        onValue((change.position.x / widthPx).coerceIn(0f, 1f))
+                        emit((change.position.x / widthPx).coerceIn(0f, 1f))
                     }
                 }
             },

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -435,6 +436,12 @@ private fun Caption(text: String) {
 
 @Composable
 private fun Track(value: Float, accent: Color, onChange: (Float) -> Unit) {
+    // pointerInput(Unit) remembers its block from the first composition, so a
+    // callback captured directly inside it keeps writing an old snapshot of the
+    // settings back. That is what made changing one slider silently revert
+    // another setting. rememberUpdatedState keeps the latest one in reach.
+    val emit by rememberUpdatedState(onChange)
+
     var widthPx by remember { mutableIntStateOf(1) }
     Box(
         Modifier
@@ -445,12 +452,12 @@ private fun Track(value: Float, accent: Color, onChange: (Float) -> Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    onChange((down.position.x / widthPx).coerceIn(0f, 0.92f))
+                    emit((down.position.x / widthPx).coerceIn(0f, 0.92f))
                     while (true) {
                         val change = awaitPointerEvent().changes.firstOrNull() ?: break
                         if (!change.pressed) break
                         change.consume()
-                        onChange((change.position.x / widthPx).coerceIn(0f, 0.92f))
+                        emit((change.position.x / widthPx).coerceIn(0f, 0.92f))
                     }
                 }
             },

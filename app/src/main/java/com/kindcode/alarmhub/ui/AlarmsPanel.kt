@@ -3,6 +3,7 @@ package com.kindcode.alarmhub.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -97,8 +99,11 @@ fun AlarmsPanel(
                     .padding(horizontal = du(64)),
             ) {
                 alarms.forEach { alarm ->
-                    SwipeToDelete(onDelete = { onChange(alarms.filterNot { it.id == alarm.id }) }) {
-                        AlarmRow(alarm, accent, use24Hour, onEdit = { editing = alarm }) {
+                    SwipeToDelete(
+                        onDelete = { onChange(alarms.filterNot { it.id == alarm.id }) },
+                        onTap = { editing = alarm },
+                    ) {
+                        AlarmRow(alarm, accent, use24Hour) {
                             onChange(
                                 alarms.map {
                                     if (it.id == alarm.id) it.copy(enabled = !it.enabled) else it
@@ -199,7 +204,6 @@ private fun AlarmRow(
     alarm: Alarm,
     accent: Color,
     use24Hour: Boolean,
-    onEdit: () -> Unit,
     onToggle: () -> Unit,
 ) {
     val on = alarm.enabled
@@ -208,7 +212,6 @@ private fun AlarmRow(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onEdit)
                 .padding(horizontal = du(8), vertical = du(22)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -318,13 +321,27 @@ private fun AlarmEditor(
                     .background(DC.ink(0.06f))
                     .padding(horizontal = du(20), vertical = du(16)),
                 decorationBox = { inner ->
-                    if (a.label.isEmpty()) {
-                        Text(
-                            "Name this alarm, for example SCHOOL",
-                            style = TextStyle(color = DC.ink(0.3f), fontSize = su(30)),
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) {
+                            if (a.label.isEmpty()) {
+                                Text(
+                                    "Name this alarm, for example SCHOOL",
+                                    style = TextStyle(color = DC.ink(0.3f), fontSize = su(30)),
+                                )
+                            }
+                            inner()
+                        }
+                        if (a.label.isNotEmpty()) {
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable { a = a.copy(label = "") }
+                                    .padding(du(8)),
+                            ) {
+                                ClearIcon(du(30))
+                            }
+                        }
                     }
-                    inner()
                 },
             )
 
@@ -631,6 +648,7 @@ private fun RepeatArrow(glyph: String, onClick: () -> Unit) {
 @Composable
 private fun SwipeToDelete(
     onDelete: () -> Unit,
+    onTap: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -638,6 +656,8 @@ private fun SwipeToDelete(
     val commitPx = with(density) { du(520).toPx() }
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    val remove by rememberUpdatedState(onDelete)
+    val tap by rememberUpdatedState(onTap)
 
     Box(Modifier.fillMaxWidth()) {
         // The bin only earns its space once the row has actually moved.
@@ -654,7 +674,7 @@ private fun SwipeToDelete(
                     Modifier
                         .padding(end = du(46))
                         .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onDelete)
+                        .clickable { remove() }
                         .padding(du(16)),
                 ) {
                     BinIcon(size = du(44))
@@ -665,36 +685,36 @@ private fun SwipeToDelete(
         Box(
             Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
+                // detectHorizontalDragGestures rather than a hand-rolled loop:
+                // it owns touch slop and consumption properly, which a manual
+                // pointer loop here did not, so the drag never started.
                 .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        var dragged = false
-                        while (true) {
-                            val change = awaitPointerEvent().changes.firstOrNull() ?: break
-                            if (!change.pressed) break
-                            val dx = change.position.x - down.position.x
-                            val dy = change.position.y - down.position.y
-                            if (!dragged && kotlin.math.abs(dx) > kotlin.math.abs(dy) &&
-                                kotlin.math.abs(dx) > 12f
-                            ) {
-                                dragged = true
-                            }
-                            if (dragged) {
-                                change.consume()
-                                scope.launch {
-                                    offset.snapTo((offset.value + change.positionChange().x)
-                                        .coerceIn(-commitPx * 1.2f, 0f))
-                                }
-                            }
-                        }
-                        if (dragged) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
                             when {
-                                offset.value <= -commitPx -> onDelete()
+                                offset.value <= -commitPx -> remove()
                                 offset.value <= -revealPx / 2f ->
                                     scope.launch { offset.animateTo(-revealPx) }
                                 else -> scope.launch { offset.animateTo(0f) }
                             }
+                        },
+                        onDragCancel = { scope.launch { offset.animateTo(0f) } },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            offset.snapTo(
+                                (offset.value + dragAmount)
+                                    .coerceIn(-commitPx * 1.2f, 0f)
+                            )
                         }
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        // A tap closes the bin if it is showing, and otherwise
+                        // opens the alarm for editing.
+                        if (offset.value < -2f) scope.launch { offset.animateTo(0f) }
+                        else tap()
                     }
                 }
         ) { content() }
@@ -718,5 +738,26 @@ private fun BinIcon(size: androidx.compose.ui.unit.Dp) {
         drawLine(Color.White, Offset(w * 0.27f, h * 0.90f), Offset(w * 0.73f, h * 0.90f), stroke)
         drawLine(Color.White, Offset(w * 0.42f, h * 0.42f), Offset(w * 0.44f, h * 0.78f), stroke * 0.8f)
         drawLine(Color.White, Offset(w * 0.58f, h * 0.42f), Offset(w * 0.56f, h * 0.78f), stroke * 0.8f)
+    }
+}
+
+/** Drawn rather than a glyph, for the same reason as the bin. */
+@Composable
+private fun ClearIcon(size: androidx.compose.ui.unit.Dp) {
+    Canvas(Modifier.size(size)) {
+        val d = this.size.minDimension
+        val r = d / 2f
+        val inset = d * 0.30f
+        drawCircle(DC.ink(0.22f), radius = r)
+        drawLine(
+            DC.ink(0.75f),
+            Offset(inset, inset), Offset(d - inset, d - inset),
+            strokeWidth = d * 0.09f,
+        )
+        drawLine(
+            DC.ink(0.75f),
+            Offset(d - inset, inset), Offset(inset, d - inset),
+            strokeWidth = d * 0.09f,
+        )
     }
 }
