@@ -1,0 +1,21 @@
+# Build output
+build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+
+# Local machine config: contains this machine's SDK path
+local.properties
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# macOS
+.DS_Store
+
+# Intermediate audio: source-of-truth provenance lives in audio/README.md,
+# the shipped loops live in app/src/main/res/raw
+audio/prepared/
