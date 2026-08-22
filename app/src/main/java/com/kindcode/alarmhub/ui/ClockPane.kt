@@ -260,7 +260,7 @@ private fun SegmentFace(
         val merRatio = if (meridiem == null) 0f else 0.30f
 
         val unitsWide = 4 * wRatio + 3 * gapRatio + colonRatio + merRatio +
-            if (meridiem == null) 0f else 0.05f
+            if (meridiem == null) 0f else 0.24f
         val avail = maxWidth.value * 0.90f
         val h = minOf(avail / unitsWide, maxHeight.value * 0.98f).dp
 
@@ -297,7 +297,7 @@ private fun SegmentFace(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .offset(x = -h * 0.12f)
+                .offset(x = -h * 0.04f)
                 .then(
                     if (staticBrush == null) Modifier else Modifier
                         .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
@@ -327,7 +327,7 @@ private fun SegmentFace(
                         softWrap = false,
                     )
                 }
-                Spacer(Modifier.width(h * 0.05f))
+                Spacer(Modifier.width(h * 0.24f))
             }
             // Unlit segments are drawn fully transparent. The ghost bars are
             // faithful to real hardware but read as smudges on a backlit LCD.

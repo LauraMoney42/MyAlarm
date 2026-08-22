@@ -131,7 +131,13 @@ class MainActivity : ComponentActivity() {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        setContent { HubRoot(app = app, setBrightness = ::applyBrightness) }
+        setContent {
+            HubRoot(
+                app = app,
+                setBrightness = ::applyBrightness,
+                hideBars = ::hideSystemBars,
+            )
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -168,7 +174,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
+private fun HubRoot(
+    app: AlarmHubApp,
+    setBrightness: (Float) -> Unit,
+    hideBars: () -> Unit,
+) {
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -200,6 +210,22 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
     }
 
     val lux = rememberAmbientLux(enabled = display.autoDim)
+
+    // Lock task always keeps a back affordance reachable by design, so it
+    // cannot be switched off, and the system reveals it on an edge swipe
+    // whatever the app asks for. It can only be put back.
+    //
+    // Nothing is polled at rest. A reveal can only follow a touch, so the
+    // sweep is keyed to the last one: hide at once, then a few more times
+    // across the second that follows, which covers the system's own reveal
+    // animation finishing after the finger has already lifted.
+    LaunchedEffect(lastTouchAt) {
+        hideBars()
+        for (wait in listOf(120L, 260L, 500L, 900L)) {
+            delay(wait)
+            hideBars()
+        }
+    }
 
     // Recompute the visible strings only when the minute actually turns.
     val minuteKey = now.hour * 60 + now.minute
@@ -431,6 +457,9 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                             while (true) {
                                 awaitPointerEvent(PointerEventPass.Initial)
                                 lastTouchAt = System.currentTimeMillis()
+                                // An edge swipe is exactly what summons the bar,
+                                // so put it away again on the same gesture.
+                                hideBars()
                             }
                         }
                     }
@@ -596,7 +625,7 @@ private fun EdgeHints(alpha: Float) {
             HintLabel("SOUNDS")
         }
         Column(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = du(14)),
+            Modifier.align(Alignment.BottomCenter).padding(bottom = du(12)),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(du(4)),
         ) {

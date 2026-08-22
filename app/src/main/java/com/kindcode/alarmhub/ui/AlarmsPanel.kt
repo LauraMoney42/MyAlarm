@@ -124,7 +124,7 @@ fun AlarmsPanel(
             // describing per-alarm settings from a screen that does not set
             // them, so it has gone.
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = du(64), vertical = du(30)),
+                Modifier.fillMaxWidth().padding(horizontal = du(64), vertical = du(46)),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
