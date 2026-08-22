@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -115,15 +116,26 @@ fun AlarmsPanel(
                 Spacer(Modifier.height(du(40)))
             }
 
+            // Settings on the left, the primary action bottom right where a
+            // thumb lands. The old caption about fade-in and wake light was
+            // describing per-alarm settings from a screen that does not set
+            // them, so it has gone.
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = du(64), vertical = du(30)),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(du(14)),
+                Box(
+                    Modifier
+                        .size(du(54))
+                        .clip(RoundedCornerShape(50))
+                        .background(DC.ink(0.09f))
+                        .clickable(onClick = onOpenSettings),
+                    contentAlignment = Alignment.Center,
                 ) {
+                    Text("\u2699", style = TextStyle(color = DC.ink(0.6f), fontSize = su(21)))
+                }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(du(12)),
@@ -133,7 +145,7 @@ fun AlarmsPanel(
                         .clickable {
                             editing = Alarm(
                                 id = 0L, hour = 6, minute = 45,
-                                days = setOf(1, 2, 3, 4, 5), label = "New alarm",
+                                days = setOf(1, 2, 3, 4, 5), label = "",
                             )
                         }
                         .padding(start = du(22), end = du(28), top = du(16), bottom = du(16)),
@@ -145,29 +157,10 @@ fun AlarmsPanel(
                             .border(du(2).coerceAtLeast(1.dp), Color(0xFF0B0B0C), RoundedCornerShape(50))
                     )
                     Text(
-                        "Set an alarm",
+                        "New Alarm",
                         style = TextStyle(color = Color(0xFF0B0B0C), fontSize = su(20)),
                     )
                 }
-                Box(
-                    Modifier
-                        .size(du(54))
-                        .clip(RoundedCornerShape(50))
-                        .background(DC.ink(0.09f))
-                        .clickable(onClick = onOpenSettings),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("\u2699", style = TextStyle(color = DC.ink(0.6f), fontSize = su(21)))
-                }
-                }
-                Text(
-                    "FADE-IN 30S · WAKE LIGHT PER ALARM",
-                    style = TextStyle(
-                        color = DC.ink(0.3f),
-                        fontSize = su(14),
-                        letterSpacing = su(14 * 0.16f),
-                    ),
-                )
             }
         }
 
@@ -300,6 +293,11 @@ private fun AlarmEditor(
         Column(
             Modifier
                 .width(du(1120))
+                // Bounded on purpose. verticalScroll inside an unbounded column
+                // measures the full content as its own viewport, so nothing
+                // scrolls and everything past the screen edge is just clipped.
+                // That is what put DELETE out of reach.
+                .heightIn(max = du(748))
                 .clip(RoundedCornerShape(du(22)))
                 .background(Color(0xFF141418))
                 .border(du(1).coerceAtLeast(1.dp), DC.ink(0.1f), RoundedCornerShape(du(22)))
