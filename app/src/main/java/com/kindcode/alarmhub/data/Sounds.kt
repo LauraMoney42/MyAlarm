@@ -41,6 +41,16 @@ sealed interface SleepVoice {
     val displayName: String
     val tag: String
 
+    /**
+     * Everything before the trailing number, so "Ocean 3" groups with "Ocean 1"
+     * whether it came from the synthesiser or from a recording. The panel sorts
+     * on this: a rain and its sibling three cards apart is not a grouping.
+     */
+    val family: String get() = displayName.trimEnd { it.isDigit() || it == ' ' }
+
+    /** The trailing number, or 0 for a one-off like Woods. */
+    val variant: Int get() = displayName.takeLastWhile { it.isDigit() }.toIntOrNull() ?: 0
+
     data class Synth(val type: NoiseType) : SleepVoice {
         override val key get() = "synth:${type.name}"
         override val displayName get() = type.displayName
@@ -54,8 +64,21 @@ sealed interface SleepVoice {
     }
 
     companion object {
+        /**
+         * Ordered by family, then by number inside it, so the two rains are
+         * adjacent and the four oceans run in sequence. Families with more than
+         * one member come first, since those are the ones the grouping is for.
+         */
         val ALL: List<SleepVoice> =
-            NoiseType.entries.map(::Synth) + SleepLoop.entries.map(::Loop)
+            (NoiseType.entries.map(::Synth) + SleepLoop.entries.map(::Loop))
+                .let { all ->
+                    val sizes = all.groupingBy { it.family }.eachCount()
+                    all.sortedWith(
+                        compareByDescending<SleepVoice> { sizes[it.family] ?: 1 }
+                            .thenBy { it.family }
+                            .thenBy { it.variant }
+                    )
+                }
 
         val DEFAULT: SleepVoice = Synth(NoiseType.RAIN)
 

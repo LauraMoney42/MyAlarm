@@ -322,15 +322,8 @@ private fun AlarmEditor(
                     .padding(horizontal = du(20), vertical = du(16)),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f)) {
-                            if (a.label.isEmpty()) {
-                                Text(
-                                    "Name this alarm, for example SCHOOL",
-                                    style = TextStyle(color = DC.ink(0.3f), fontSize = su(30)),
-                                )
-                            }
-                            inner()
-                        }
+                        // Leading, so it sits under your thumb on the same side
+                        // you started reading from.
                         if (a.label.isNotEmpty()) {
                             Box(
                                 Modifier
@@ -340,6 +333,16 @@ private fun AlarmEditor(
                             ) {
                                 ClearIcon(du(30))
                             }
+                            Spacer(Modifier.width(du(14)))
+                        }
+                        Box(Modifier.weight(1f)) {
+                            if (a.label.isEmpty()) {
+                                Text(
+                                    "Name this alarm, for example SCHOOL",
+                                    style = TextStyle(color = DC.ink(0.3f), fontSize = su(30)),
+                                )
+                            }
+                            inner()
                         }
                     }
                 },

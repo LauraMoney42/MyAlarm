@@ -21,11 +21,11 @@ import java.time.LocalDateTime
  * two rains read as "Rain 1" and "Rain 2" instead of "Rain on glass" and "Rain".
  */
 enum class NoiseType(val displayName: String, val tag: String) {
-    RAIN("Rain 1", "STEADY"),
+    RAIN("Rain 1", "ON GLASS"),
     BROWN("Brown noise", "MASKING"),
-    SURF("Slow surf", "CYCLIC"),
+    SURF("Ocean 4", "SLOW SURF"),
     FAN("Box fan", "MASKING"),
-    OCEAN("Ocean 1", "NATURE"),
+    OCEAN("Ocean 1", "NEARSHORE"),
     NIGHT("Summer night", "NATURE"),
     TRAIN("Night train", "MOTION"),
     DRONE("Deep drone", "TONAL"),

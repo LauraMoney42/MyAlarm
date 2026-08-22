@@ -63,6 +63,14 @@ object Kiosk {
         runCatching {
             d.setLockTaskPackages(admin(activity), arrayOf(activity.packageName))
             d.setStatusBarDisabled(admin(activity), true)
+            // Lock task still draws a stripped-down nav bar by default, which is
+            // where the lone back chevron at the bottom of the screen came from.
+            // NONE removes home, overview, global actions, notifications and the
+            // system info area, leaving nothing on screen at all.
+            d.setLockTaskFeatures(
+                admin(activity),
+                DevicePolicyManager.LOCK_TASK_FEATURE_NONE,
+            )
         }
         if (runCatching { d.isLockTaskPermitted(activity.packageName) }.getOrDefault(false)) {
             runCatching { activity.startLockTask() }
