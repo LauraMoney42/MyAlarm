@@ -107,7 +107,7 @@ fun WeatherPanel(accent: Color, onClose: () -> Unit) {
                 )
             }
         }
-        CloseGrip(vertical = true, modifier = Modifier.align(Alignment.CenterEnd)) { onClose() }
+        CloseGrip(vertical = true, modifier = Modifier.align(Alignment.CenterStart)) { onClose() }
 
     }
 }

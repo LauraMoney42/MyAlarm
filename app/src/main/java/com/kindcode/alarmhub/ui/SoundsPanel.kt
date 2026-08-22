@@ -219,7 +219,7 @@ fun SoundsPanel(
                 }
             }
         }
-        CloseGrip(vertical = false, modifier = Modifier.align(Alignment.TopCenter)) { onClose() }
+        CloseGrip(vertical = false, modifier = Modifier.align(Alignment.BottomCenter)) { onClose() }
 
     }
 }

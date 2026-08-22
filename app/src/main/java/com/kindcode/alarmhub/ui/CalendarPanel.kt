@@ -121,7 +121,7 @@ fun CalendarPanel(now: LocalDateTime, accent: Color, onClose: () -> Unit) {
                 )
             }
         }
-        CloseGrip(vertical = true, modifier = Modifier.align(Alignment.CenterStart)) { onClose() }
+        CloseGrip(vertical = true, modifier = Modifier.align(Alignment.CenterEnd)) { onClose() }
 
     }
 }

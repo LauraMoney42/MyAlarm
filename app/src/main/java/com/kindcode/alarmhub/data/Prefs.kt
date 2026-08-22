@@ -67,6 +67,9 @@ data class Alarm(
     }
 }
 
+/** Which face the clock wears. */
+enum class ClockStyle { FLIP, SEGMENT }
+
 data class DisplayConfig(
     val use24Hour: Boolean = false,
     /** Hour at which the display drops to night mode. */
@@ -83,7 +86,26 @@ data class DisplayConfig(
     val autoDim: Boolean = true,
     /** Crossfade the cards instead of flipping. Defaults on for low-RAM devices. */
     val reducedMotion: Boolean = false,
-    val accentIndex: Int = 0,
+    val clockStyle: ClockStyle = ClockStyle.FLIP,
+    /** ARGB. Ignored by the flip face, which draws its own card colours. */
+    val digitColor: Int = 0xFFC6C6C9.toInt(),
+    val backgroundColor: Int = 0xFF050506.toInt(),
+    val accentColor: Int = 0xFFD8A15C.toInt(),
+    /** Base hue for the wake light ramp. The stops are derived from it. */
+    val wakeColor: Int = 0xFFFFA72B.toInt(),
+    /**
+     * Rainbow is a choice on each colour target rather than a mode, so the
+     * numbers can cycle over a fixed background or the other way round.
+     *
+     * The drift is driven off the existing one-second tick rather than an
+     * animation, because a continuously animating clock is exactly the cost
+     * this device cannot pay all night: a full cycle spread over minutes is
+     * smooth enough at one frame per second.
+     */
+    val digitRainbow: Boolean = false,
+    val surfaceRainbow: Boolean = false,
+    val accentRainbow: Boolean = false,
+    val wakeRainbow: Boolean = false,
 )
 
 data class SleepConfig(
@@ -190,7 +212,17 @@ class Prefs(context: Context) {
         nightDim = sp.getFloat("d_night_dim", 0.72f),
         autoDim = sp.getBoolean("d_auto_dim", true),
         reducedMotion = sp.getBoolean("d_reduced_motion", isLowRam),
-        accentIndex = sp.getInt("d_accent", 0),
+        clockStyle = runCatching {
+            ClockStyle.valueOf(sp.getString("d_style", "FLIP")!!)
+        }.getOrDefault(ClockStyle.FLIP),
+        digitColor = sp.getInt("d_digit_color", 0xFFC6C6C9.toInt()),
+        backgroundColor = sp.getInt("d_bg_color", 0xFF050506.toInt()),
+        accentColor = sp.getInt("d_accent_color", 0xFFD8A15C.toInt()),
+        wakeColor = sp.getInt("d_wake_color", 0xFFFFA72B.toInt()),
+        digitRainbow = sp.getBoolean("d_rainbow", false),
+        surfaceRainbow = sp.getBoolean("d_bg_rainbow", false),
+        accentRainbow = sp.getBoolean("d_accent_rainbow", false),
+        wakeRainbow = sp.getBoolean("d_wake_rainbow", false),
     )
 
     fun setDisplay(cfg: DisplayConfig) {
@@ -202,7 +234,15 @@ class Prefs(context: Context) {
             .putFloat("d_night_dim", cfg.nightDim)
             .putBoolean("d_auto_dim", cfg.autoDim)
             .putBoolean("d_reduced_motion", cfg.reducedMotion)
-            .putInt("d_accent", cfg.accentIndex)
+            .putString("d_style", cfg.clockStyle.name)
+            .putInt("d_digit_color", cfg.digitColor)
+            .putInt("d_bg_color", cfg.backgroundColor)
+            .putInt("d_accent_color", cfg.accentColor)
+            .putInt("d_wake_color", cfg.wakeColor)
+            .putBoolean("d_rainbow", cfg.digitRainbow)
+            .putBoolean("d_bg_rainbow", cfg.surfaceRainbow)
+            .putBoolean("d_accent_rainbow", cfg.accentRainbow)
+            .putBoolean("d_wake_rainbow", cfg.wakeRainbow)
             .apply()
         _display.value = cfg
     }

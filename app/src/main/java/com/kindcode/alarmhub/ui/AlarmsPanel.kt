@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,10 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kindcode.alarmhub.audio.TonePreview
+import com.kindcode.alarmhub.data.AlarmTone
 import com.kindcode.alarmhub.data.ALARM_TONES
 import com.kindcode.alarmhub.data.Alarm
 import kotlinx.coroutines.delay
@@ -146,7 +150,7 @@ fun AlarmsPanel(
             }
         }
 
-        CloseGrip(vertical = false, modifier = Modifier.align(Alignment.BottomCenter)) { onClose() }
+        CloseGrip(vertical = false, modifier = Modifier.align(Alignment.TopCenter)) { onClose() }
 
         editing?.let { draft ->
             AlarmEditor(
@@ -260,6 +264,10 @@ private fun AlarmEditor(
 ) {
     var a by remember(draft.id) { mutableStateOf(draft) }
 
+    // Whatever is previewing has to die with the sheet, or a tone keeps playing
+    // over an app the user has already moved on from.
+    DisposableEffect(Unit) { onDispose { TonePreview.stop() } }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -270,7 +278,7 @@ private fun AlarmEditor(
     ) {
         Column(
             Modifier
-                .width(du(760))
+                .width(du(1120))
                 .clip(RoundedCornerShape(du(22)))
                 .background(Color(0xFF141418))
                 .border(du(1).coerceAtLeast(1.dp), DC.ink(0.1f), RoundedCornerShape(du(22)))
@@ -278,7 +286,7 @@ private fun AlarmEditor(
                 .padding(horizontal = du(44), vertical = du(30)),
             verticalArrangement = Arrangement.spacedBy(du(20)),
         ) {
-            SectionLabel(if (draft.id == 0L) "NEW ALARM" else "EDIT ALARM", 15, 0.5f)
+            SectionLabel(if (draft.id == 0L) "NEW ALARM" else "EDIT ALARM", 19, 0.5f)
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -294,7 +302,7 @@ private fun AlarmEditor(
                     ":",
                     style = TextStyle(
                         color = DC.ink(0.24f),
-                        fontSize = su(62),
+                        fontSize = su(80),
                         fontWeight = FontWeight.ExtraLight,
                     ),
                     modifier = Modifier.padding(horizontal = du(11)),
@@ -326,7 +334,7 @@ private fun AlarmEditor(
                     val on = day in a.days
                     Box(
                         Modifier
-                            .size(du(52))
+                            .size(du(68))
                             .clip(RoundedCornerShape(50))
                             .background(if (on) accent else Color.Transparent)
                             .border(
@@ -347,7 +355,7 @@ private fun AlarmEditor(
                             initial,
                             style = TextStyle(
                                 color = if (on) Color(0xFF0B0B0C) else DC.ink(0.5f),
-                                fontSize = su(17),
+                                fontSize = su(22),
                             ),
                         )
                     }
@@ -355,11 +363,15 @@ private fun AlarmEditor(
             }
 
             Divider()
-            SectionLabel("ALARM SOUND", 14, 0.5f)
-            FlowChips(ALARM_TONES, a.tone, accent) { a = a.copy(tone = it) }
+            SectionLabel("ALARM SOUND", 18, 0.5f)
+            val ctx = LocalContext.current
+            FlowChips(ALARM_TONES, a.tone, accent) { name ->
+                a = a.copy(tone = name)
+                TonePreview.play(ctx, AlarmTone.byName(name))
+            }
             Text(
                 "${a.tone} · fades in over 30s starting at low volume",
-                style = TextStyle(color = DC.ink(0.4f), fontSize = su(15)),
+                style = TextStyle(color = DC.ink(0.4f), fontSize = su(19)),
             )
 
             Divider()
@@ -368,7 +380,7 @@ private fun AlarmEditor(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SectionLabel("WARM WAKE LIGHT", 14, 0.5f)
+                SectionLabel("WARM WAKE LIGHT", 18, 0.5f)
                 Toggle(a.wakeLight, accent, width = 64) { a = a.copy(wakeLight = !a.wakeLight) }
             }
             Row(
@@ -377,15 +389,15 @@ private fun AlarmEditor(
             ) {
                 Text(
                     "Starts before",
-                    style = TextStyle(color = DC.ink(0.5f), fontSize = su(16)),
-                    modifier = Modifier.width(du(126)),
+                    style = TextStyle(color = DC.ink(0.5f), fontSize = su(20)),
+                    modifier = Modifier.width(du(170)),
                 )
                 LEADS.forEach { m ->
                     Chip(
                         label = "$m MIN",
                         selected = a.wakeLight && a.leadMinutes == m,
                         accent = accent,
-                        hPad = 22, vPad = 12, fontSize = 17, tracking = 0.06f,
+                        hPad = 28, vPad = 16, fontSize = 22, tracking = 0.06f,
                     ) { a = a.copy(wakeLight = true, leadMinutes = m) }
                 }
             }
@@ -399,7 +411,7 @@ private fun AlarmEditor(
                 } else {
                     "Screen stays dark until the alarm sounds"
                 },
-                style = TextStyle(color = DC.ink(0.4f), fontSize = su(15)),
+                style = TextStyle(color = DC.ink(0.4f), fontSize = su(19)),
             )
 
             Row(
@@ -418,8 +430,8 @@ private fun AlarmEditor(
                             "DELETE",
                             style = TextStyle(
                                 color = Color(0xFFC47B6A),
-                                fontSize = su(16),
-                                letterSpacing = su(16 * 0.2f),
+                                fontSize = su(20),
+                                letterSpacing = su(20 * 0.2f),
                             ),
                         )
                     }
@@ -473,14 +485,14 @@ private fun MeridiemButton(label: String, selected: Boolean, accent: Color, onCl
             .clip(RoundedCornerShape(du(8)))
             .background(if (selected) accent else DC.ink(0.07f))
             .clickable(onClick = onClick)
-            .padding(horizontal = du(20), vertical = du(10)),
+            .padding(horizontal = du(26), vertical = du(14)),
     ) {
         Text(
             label,
             style = TextStyle(
                 color = if (selected) Color(0xFF0B0B0C) else DC.ink(0.6f),
-                fontSize = su(17),
-                letterSpacing = su(17 * 0.14f),
+                fontSize = su(22),
+                letterSpacing = su(22 * 0.14f),
             ),
         )
     }
@@ -502,7 +514,7 @@ private fun FlowChips(
                         label = name,
                         selected = selected == name,
                         accent = accent,
-                        hPad = 22, vPad = 12, fontSize = 17, tracking = 0f,
+                        hPad = 28, vPad = 16, fontSize = 22, tracking = 0f,
                     ) { onSelect(name) }
                 }
             }
@@ -523,8 +535,8 @@ private fun Stepper(value: String, onUp: () -> Unit, onDown: () -> Unit) {
             value,
             style = TextStyle(
                 color = DC.ink,
-                fontSize = su(80),
-                lineHeight = su(80),
+                fontSize = su(104),
+                lineHeight = su(104),
                 fontWeight = FontWeight.Light,
             ),
         )
@@ -549,7 +561,7 @@ private fun RepeatArrow(glyph: String, onClick: () -> Unit) {
 
     Box(
         Modifier
-            .size(du(96), du(48))
+            .size(du(120), du(60))
             .clip(RoundedCornerShape(du(8)))
             .background(if (pressed) DC.ink(0.08f) else Color.Transparent)
             .pointerInput(Unit) {
@@ -564,6 +576,6 @@ private fun RepeatArrow(glyph: String, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(glyph, style = TextStyle(color = DC.ink(0.4f), fontSize = su(24)))
+        Text(glyph, style = TextStyle(color = DC.ink(0.4f), fontSize = su(30)))
     }
 }

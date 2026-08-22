@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +56,8 @@ private fun Half(
     value: String,
     top: Boolean,
     corner: String?,
+    digitColor: Color,
+    cardColor: Color,
     modifier: Modifier = Modifier,
 ) {
     val w = du(CARD_W)
@@ -63,14 +66,18 @@ private fun Half(
         Box(
             Modifier
                 .requiredSize(w, h / 2)
-                .background(if (top) DC.cardTop else DC.cardBottom)
+                // The top leaf is lifted a touch so the hinge reads as a fold
+                // rather than a drawn line, whatever colour the card is.
+                .background(
+                    if (top) lerp(cardColor, Color.White, 0.035f) else cardColor
+                )
         )
         Box(Modifier.offset(y = if (top) 0.dp else -(h / 2))) {
             Box(Modifier.requiredSize(w, h), contentAlignment = Alignment.Center) {
                 Text(
                     text = value,
                     style = TextStyle(
-                        color = DC.digit,
+                        color = digitColor,
                         fontSize = su(FACE_SIZE),
                         lineHeight = su(FACE_SIZE),
                         fontWeight = FontWeight.Bold,
@@ -94,7 +101,7 @@ private fun Half(
             Text(
                 text = corner,
                 style = TextStyle(
-                    color = DC.digit.copy(alpha = 0.85f),
+                    color = digitColor.copy(alpha = 0.85f),
                     fontSize = su(43),
                     fontWeight = FontWeight.Bold,
                     letterSpacing = su(0.8f),
@@ -120,6 +127,8 @@ fun FlipCard(
     value: String,
     corner: String? = null,
     reducedMotion: Boolean = false,
+    digitColor: Color = DC.digit,
+    cardColor: Color = DC.cardBody,
 ) {
     val density = LocalDensity.current
     val w = du(CARD_W)
@@ -153,7 +162,7 @@ fun FlipCard(
         Modifier
             .size(w, h)
             .clip(RoundedCornerShape(du(CARD_R)))
-            .background(DC.cardBody)
+            .background(cardColor)
     ) {
         // Backing layers. The bottom one MUST settle on `current`: the crossfade
         // overlay stops drawing at p == 1, and if the backing still said
@@ -165,19 +174,20 @@ fun FlipCard(
             p < 0.5f -> previous
             else -> current
         }
-        Half(current, top = true, corner = corner, modifier = Modifier.align(Alignment.TopStart))
+        Half(current, top = true, corner = corner, digitColor = digitColor, cardColor = cardColor,
+            modifier = Modifier.align(Alignment.TopStart))
         Half(
             bottomBacking,
-            top = false, corner = null,
+            top = false, corner = null, digitColor = digitColor, cardColor = cardColor,
             modifier = Modifier.align(Alignment.BottomStart),
         )
 
         if (p < 1f && reducedMotion) {
             Box(Modifier.align(Alignment.TopStart).graphicsLayer { alpha = 1f - p }) {
-                Half(previous, top = true, corner = corner)
+                Half(previous, top = true, corner = corner, digitColor = digitColor, cardColor = cardColor)
             }
             Box(Modifier.align(Alignment.BottomStart).graphicsLayer { alpha = p }) {
-                Half(current, top = false, corner = null)
+                Half(current, top = false, corner = null, digitColor = digitColor, cardColor = cardColor)
             }
         } else if (p < 1f) {
             if (p < 0.5f) {
@@ -190,7 +200,7 @@ fun FlipCard(
                             cameraDistance = camera
                         }
                 ) {
-                    Half(previous, top = true, corner = corner)
+                    Half(previous, top = true, corner = corner, digitColor = digitColor, cardColor = cardColor)
                     Box(
                         Modifier
                             .size(w, h / 2)
@@ -207,7 +217,7 @@ fun FlipCard(
                             cameraDistance = camera
                         }
                 ) {
-                    Half(current, top = false, corner = null)
+                    Half(current, top = false, corner = null, digitColor = digitColor, cardColor = cardColor)
                     Box(
                         Modifier
                             .size(w, h / 2)

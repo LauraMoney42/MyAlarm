@@ -65,6 +65,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.kindcode.alarmhub.alarm.AlarmRinger
 import com.kindcode.alarmhub.alarm.AlarmScheduler
 import com.kindcode.alarmhub.audio.SleepAudioService
+import com.kindcode.alarmhub.data.ClockStyle
 import com.kindcode.alarmhub.kiosk.Kiosk
 import com.kindcode.alarmhub.ui.AlarmsPanel
 import com.kindcode.alarmhub.ui.CalendarPanel
@@ -180,7 +181,10 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
     val snoozeAt by app.prefs.snoozeAt.collectAsState()
     val snoozeId by app.prefs.snoozeId.collectAsState()
 
-    val accent = DC.accents.getOrElse(display.accentIndex) { DC.accent }
+    // Rainbow targets cycle off the same phase, offset from each other so the
+    // numbers and the accent are never the same hue at the same moment.
+    val anyRainbow = display.digitRainbow || display.surfaceRainbow || display.accentRainbow
+    val accent = if (display.accentRainbow) DC.accent else Color(display.accentColor)
 
     var playStartedAt by remember { mutableLongStateOf(0L) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -210,6 +214,27 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
         )
     }
     val dayLabel = remember(now.dayOfYear) { dateLabel(now) }
+
+    // One full hue cycle every four minutes, stepped once per second off the
+    // tick that already exists. An actual animation would redraw continuously,
+    // which is precisely the cost this GPU cannot carry all night.
+    val rainbowPhase = if (anyRainbow) {
+        (now.toLocalTime().toSecondOfDay() % 240) / 240f
+    } else 0f
+
+    val liveAccent = if (display.accentRainbow) {
+        Color.hsv(((rainbowPhase * 360f) + 180f) % 360f, 0.72f, 0.95f)
+    } else accent
+
+    // Kept dim on purpose. This is the surface the numbers sit on, so a fully
+    // saturated cycle behind them would bury the time.
+    val surface = if (display.surfaceRainbow) {
+        Color.hsv((rainbowPhase * 360f) % 360f, 0.55f, 0.22f)
+    } else Color(display.backgroundColor)
+
+    val wakeBase = if (display.wakeRainbow) {
+        Color.hsv(((rainbowPhase * 360f) + 90f) % 360f, 0.85f, 1f)
+    } else Color(display.wakeColor)
 
     val next = remember(alarms, snoozeAt, snoozeId, now.minute, now.hour) {
         AlarmScheduler.nextFire(alarms, now, snoozeAt, snoozeId)
@@ -289,7 +314,12 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
     }
 
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(DC.bg)) {
+    // In LED mode the chosen colour is the whole screen. In flip mode it is the
+    // flaps, and the page behind them stays dark so the cards still read as
+    // physical objects sitting on a surface.
+    val pageColor = if (display.clockStyle == ClockStyle.SEGMENT) surface else DC.bg
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(pageColor)) {
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
         // The design is authored on a 1280x800 canvas; scale it once here.
@@ -323,8 +353,8 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(view, firingId) {
-                        if (firingId != 0L) return@pointerInput
+                    .pointerInput(view, firingId, settingsOpen) {
+                        if (firingId != 0L || settingsOpen) return@pointerInput
                         var acc = Offset.Zero
                         detectDragGestures(
                             onDragStart = { acc = Offset.Zero },
@@ -397,8 +427,13 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                         mm = clock.second,
                         meridiem = clock.third,
                         dateLabel = dayLabel,
+                        style = display.clockStyle,
+                        digitColor = Color(display.digitColor),
+                        surfaceColor = surface,
+                        rainbow = display.digitRainbow,
+                        rainbowPhase = rainbowPhase,
                         reducedMotion = display.reducedMotion,
-                        accent = accent,
+                        accent = liveAccent,
                         nextAlarmLabel = nextLabel(next, display.use24Hour),
                         soundStatus = soundStatus(playing, sleep, secondsLeft),
                         soundPlaying = playing,
@@ -434,7 +469,7 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                     ) {
                         AlarmsPanel(
                             alarms = alarms,
-                            accent = accent,
+                            accent = liveAccent,
                             use24Hour = display.use24Hour,
                             onChange = { updated ->
                                 app.prefs.setAlarms(updated)
@@ -455,7 +490,7 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                             cfg = sleep,
                             playing = playing,
                             secondsLeft = secondsLeft,
-                            accent = accent,
+                            accent = liveAccent,
                             onChange = { updated ->
                                 app.prefs.setSleep(updated)
                                 if (playing) {
@@ -492,8 +527,13 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                 if (settingsOpen) {
                     SettingsSheet(
                         display = display,
-                        accent = accent,
+                        accent = liveAccent,
                         onChange = { app.prefs.setDisplay(it) },
+                        onPreviewWake = {
+                            settingsOpen = false
+                            val t = alarms.firstOrNull { it.enabled } ?: alarms.firstOrNull()
+                            if (t != null) app.prefs.setFiring(t.id)
+                        },
                         onClose = { settingsOpen = false },
                     )
                 }
@@ -505,6 +545,7 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                         label = firingAlarm.label,
                         soundName = firingAlarm.tone,
                         wakeProgress = if (light.mode == LightMode.WAKE) light.wakeProgress else 1f,
+                        baseColor = wakeBase,
                         onSnooze = {
                             val at = System.currentTimeMillis() + 9 * 60_000L
                             app.prefs.setSnooze(at, firingAlarm.id)

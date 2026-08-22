@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 
 /**
  * Lock task mode, the only way on stock Android to make the navigation and
@@ -24,6 +25,33 @@ object Kiosk {
         ctx.getSystemService(DevicePolicyManager::class.java)
 
     private fun admin(ctx: Context) = ComponentName(ctx, AdminReceiver::class.java)
+
+    private const val HOME_ALIAS = "com.kindcode.alarmhub.HomeAlias"
+
+    /**
+     * The everyday kiosk switch: whether the clock is a home screen.
+     *
+     * An app is always allowed to enable and disable its own components, which
+     * is what makes this a toggle the user can own. Lock task, below, is the
+     * stronger lock and needs device owner granted once over adb.
+     */
+    fun isHomeAliasEnabled(ctx: Context): Boolean {
+        val state = ctx.packageManager.getComponentEnabledSetting(
+            ComponentName(ctx.packageName, HOME_ALIAS)
+        )
+        return state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    }
+
+    fun setHomeAlias(ctx: Context, enabled: Boolean) {
+        runCatching {
+            ctx.packageManager.setComponentEnabledSetting(
+                ComponentName(ctx.packageName, HOME_ALIAS),
+                if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
+    }
 
     fun isDeviceOwner(ctx: Context): Boolean =
         runCatching { dpm(ctx).isDeviceOwnerApp(ctx.packageName) }.getOrDefault(false)

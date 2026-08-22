@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +40,7 @@ fun RingScreen(
     label: String,
     soundName: String,
     wakeProgress: Float,
+    baseColor: Color,
     onSnooze: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -54,6 +56,15 @@ fun RingScreen(
         "GOOD MORNING, SUNSHINE!"
     }
 
+    // The ramp is derived from one chosen hue rather than hardcoded, so the
+    // wake light can be any colour and still travel the same path: pale and
+    // desaturated at the top, saturated through the middle, nearly black at the
+    // outer edge. Feeding it amber reproduces the original sunrise exactly.
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(baseColor.toArgb(), hsv)
+    fun stop(hueShift: Float, sat: Float, value: Float) =
+        Color.hsv((hsv[0] + hueShift + 360f) % 360f, sat, value)
+
     val glowOp = 0.05f + wakeProgress * wakeProgress * 0.95f
     val fieldOp = 0.18f + Math.pow(wakeProgress.toDouble(), 0.75).toFloat() * 0.82f
 
@@ -65,12 +76,12 @@ fun RingScreen(
                 .background(
                     Brush.radialGradient(
                         colorStops = arrayOf(
-                            0.00f to Color(0xFFFFF3C4).copy(alpha = fieldOp),
-                            0.22f to Color(0xFFFFD166).copy(alpha = fieldOp),
-                            0.44f to Color(0xFFFFA72B).copy(alpha = fieldOp),
-                            0.66f to Color(0xFFE0621A).copy(alpha = fieldOp),
-                            0.86f to Color(0xFF5C2408).copy(alpha = fieldOp),
-                            1.00f to Color(0xFF170A04).copy(alpha = fieldOp),
+                            0.00f to stop(14f, 0.23f, 1.00f).copy(alpha = fieldOp),
+                            0.22f to stop(8f, 0.60f, 1.00f).copy(alpha = fieldOp),
+                            0.44f to stop(0f, 0.83f, 1.00f).copy(alpha = fieldOp),
+                            0.66f to stop(-6f, 0.93f, 0.88f).copy(alpha = fieldOp),
+                            0.86f to stop(-10f, 0.95f, 0.36f).copy(alpha = fieldOp),
+                            1.00f to stop(-12f, 0.90f, 0.09f).copy(alpha = fieldOp),
                         ),
                         center = Offset(
                             with(density) { du(640).toPx() },
@@ -88,10 +99,10 @@ fun RingScreen(
                 .background(
                     Brush.radialGradient(
                         colorStops = arrayOf(
-                            0.00f to Color(0xFFFFFDF2).copy(alpha = glowOp),
-                            0.26f to Color(0xFFFFE9A3).copy(alpha = glowOp * 0.9f),
-                            0.50f to Color(0xFFFFC448).copy(alpha = glowOp * 0.62f),
-                            1.00f to Color(0x00FF9628),
+                            0.00f to stop(16f, 0.05f, 1.00f).copy(alpha = glowOp),
+                            0.26f to stop(12f, 0.36f, 1.00f).copy(alpha = glowOp * 0.9f),
+                            0.50f to stop(4f, 0.72f, 1.00f).copy(alpha = glowOp * 0.62f),
+                            1.00f to stop(0f, 0.85f, 1.00f).copy(alpha = 0f),
                         ),
                         center = Offset(
                             with(density) { du(640).toPx() },
