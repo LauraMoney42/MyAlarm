@@ -438,10 +438,6 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                         soundStatus = soundStatus(playing, sleep, secondsLeft),
                         soundPlaying = playing,
                         onOpenSettings = { settingsOpen = true },
-                        onPreviewWake = {
-                            val target = alarms.firstOrNull { it.enabled } ?: alarms.firstOrNull()
-                            if (target != null) app.prefs.setFiring(target.id)
-                        },
                     )
                 }
 

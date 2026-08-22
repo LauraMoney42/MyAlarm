@@ -52,7 +52,6 @@ fun ClockPane(
     nextAlarmLabel: String,
     soundStatus: String,
     soundPlaying: Boolean,
-    onPreviewWake: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
 
@@ -95,14 +94,6 @@ fun ClockPane(
                 StatusText(nextAlarmLabel)
                 Dot()
                 StatusText(soundStatus, if (soundPlaying) accent else DC.ink(0.34f))
-                Dot()
-                StatusText(
-                    "PREVIEW WAKE",
-                    DC.ink(0.5f),
-                    Modifier
-                        .clip(RoundedCornerShape(du(6)))
-                        .clickable(onClick = onPreviewWake),
-                )
             }
         }
 
@@ -175,7 +166,14 @@ private fun SegmentFace(
             modifier = Modifier.offset(x = -h * 0.12f),
         ) {
             if (meridiem != null) {
-                Box(Modifier.width(h * merRatio), contentAlignment = Alignment.CenterEnd) {
+                // offset shifts where this draws without changing the width the
+                // row reserves for it, so the digits do not move with it.
+                Box(
+                    Modifier
+                        .width(h * merRatio)
+                        .offset(x = h * 0.05f),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
                     Text(
                         meridiem,
                         style = TextStyle(
