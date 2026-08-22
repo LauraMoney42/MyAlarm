@@ -219,7 +219,8 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
     // tick that already exists. An actual animation would redraw continuously,
     // which is precisely the cost this GPU cannot carry all night.
     val rainbowPhase = if (anyRainbow) {
-        (now.toLocalTime().toSecondOfDay() % 240) / 240f
+        val period = display.rainbowSeconds.coerceAtLeast(10)
+        (now.toLocalTime().toSecondOfDay() % period) / period.toFloat()
     } else 0f
 
     val liveAccent = if (display.accentRainbow) {
@@ -432,6 +433,8 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                         surfaceColor = surface,
                         rainbow = display.digitRainbow,
                         rainbowPhase = rainbowPhase,
+                        rainbowSpread = display.rainbowSpread,
+                        rainbowStatic = display.rainbowStatic,
                         reducedMotion = display.reducedMotion,
                         accent = liveAccent,
                         nextAlarmLabel = nextLabel(next, display.use24Hour),
@@ -524,6 +527,10 @@ private fun HubRoot(app: AlarmHubApp, setBrightness: (Float) -> Unit) {
                     SettingsSheet(
                         display = display,
                         accent = liveAccent,
+                        previewHh = clock.first,
+                        previewMm = clock.second,
+                        previewMeridiem = clock.third,
+                        rainbowPhase = rainbowPhase,
                         onChange = { app.prefs.setDisplay(it) },
                         onPreviewWake = {
                             settingsOpen = false

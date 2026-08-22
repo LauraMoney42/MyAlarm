@@ -54,6 +54,10 @@ private const val SUPPORT_CONTACT = "kindcodedevelopment@gmail.com"
 fun SettingsSheet(
     display: DisplayConfig,
     accent: Color,
+    previewHh: String,
+    previewMm: String,
+    previewMeridiem: String?,
+    rainbowPhase: Float,
     onChange: (DisplayConfig) -> Unit,
     onPreviewWake: () -> Unit,
     onClose: () -> Unit,
@@ -81,252 +85,338 @@ fun SettingsSheet(
                 .background(Color(0xFF141418))
                 .pointerInput(Unit) { detectTapGestures { } }
                 .border(du(1).coerceAtLeast(1.dp), DC.ink(0.1f), RoundedCornerShape(du(22)))
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = du(44), vertical = du(34)),
             verticalArrangement = Arrangement.spacedBy(du(26)),
         ) {
-            SectionLabel("CLOCK FACE", 15, 0.5f)
-            Row(horizontalArrangement = Arrangement.spacedBy(du(12))) {
-                Chip("Flip", display.clockStyle == ClockStyle.FLIP, accent, hPad = 30, fontSize = 17) {
-                    onChange(display.copy(clockStyle = ClockStyle.FLIP))
-                }
-                Chip("LED", display.clockStyle == ClockStyle.SEGMENT, accent, hPad = 30, fontSize = 17) {
-                    onChange(display.copy(clockStyle = ClockStyle.SEGMENT))
-                }
-            }
+            ClockFacePreview(
+                hh = previewHh,
+                mm = previewMm,
+                meridiem = previewMeridiem,
+                style = display.clockStyle,
+                digitColor = Color(display.digitColor),
+                surfaceColor = Color(display.backgroundColor),
+                pageColor = if (display.clockStyle == ClockStyle.SEGMENT) {
+                    Color(display.backgroundColor)
+                } else DC.bg,
+                rainbow = display.digitRainbow,
+                rainbowPhase = rainbowPhase,
+                rainbowSpread = display.rainbowSpread,
+                rainbowStatic = display.rainbowStatic,
+                reducedMotion = display.reducedMotion,
+            )
 
-            Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
-
-            SectionLabel("DISPLAY", 15, 0.5f)
-
-            Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Body("Brightness")
-                    Body("${(display.dayBrightness * 100).toInt()}%", DC.ink(0.45f))
-                }
-                Track(display.dayBrightness, accent) {
-                    // Below about 5% the panel is unreadable in daylight, and the
-                    // night scrim is the control for getting darker than that.
-                    onChange(display.copy(dayBrightness = it.coerceIn(0.05f, 1f)))
-                }
-            }
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            // Pinned above the scroll. The whole point is to watch the face
+            // while changing it, which does not work if it scrolls away.
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(du(26)),
             ) {
-                Body("24 hour clock")
-                Toggle(display.use24Hour, accent, width = 64) {
-                    onChange(display.copy(use24Hour = !display.use24Hour))
-                }
-            }
 
-            Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
+                SectionLabel("CLOCK FACE", 15, 0.5f)
+                Row(horizontalArrangement = Arrangement.spacedBy(du(12))) {
+                    Chip("Flip", display.clockStyle == ClockStyle.FLIP, accent, hPad = 30, fontSize = 17) {
+                        onChange(display.copy(clockStyle = ClockStyle.FLIP))
+                    }
+                    Chip("LED", display.clockStyle == ClockStyle.SEGMENT, accent, hPad = 30, fontSize = 17) {
+                        onChange(display.copy(clockStyle = ClockStyle.SEGMENT))
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
+
+                SectionLabel("DISPLAY", 15, 0.5f)
+
+                Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Body("Brightness")
+                        Body("${(display.dayBrightness * 100).toInt()}%", DC.ink(0.45f))
+                    }
+                    Track(display.dayBrightness, accent) {
+                        // Below about 5% the panel is unreadable in daylight, and the
+                        // night scrim is the control for getting darker than that.
+                        onChange(display.copy(dayBrightness = it.coerceIn(0.05f, 1f)))
+                    }
+                }
+
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Body("Night darkness")
-                    Body("${(display.nightDim * 100).toInt()}%", DC.ink(0.45f))
-                }
-                Track(display.nightDim, accent) { onChange(display.copy(nightDim = it)) }
-                Caption("How far the screen is painted over once the clock sits idle at night.")
-            }
-
-            Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
-
-            SectionLabel("COLORS", 15, 0.5f)
-
-            // One picker, three targets. Three stacked pickers would be the
-            // obvious layout and would push everything else off the sheet.
-            var target by remember { mutableIntStateOf(0) }
-            Row(horizontalArrangement = Arrangement.spacedBy(du(10))) {
-                listOf("Numbers", "Background", "Accent", "Wake light").forEachIndexed { index, name ->
-                    Chip(name, target == index, accent, hPad = 22, fontSize = 16) { target = index }
-                }
-            }
-
-            val current = when (target) {
-                0 -> Color(display.digitColor)
-                1 -> Color(display.backgroundColor)
-                2 -> Color(display.accentColor)
-                else -> Color(display.wakeColor)
-            }
-            val rainbowOn = when (target) {
-                0 -> display.digitRainbow
-                1 -> display.surfaceRainbow
-                2 -> display.accentRainbow
-                else -> display.wakeRainbow
-            }
-
-            // Choosing a colour always turns rainbow off for that target: the
-            // two are the same setting, not two settings that could disagree.
-            fun apply(c: Color) {
-                onChange(
-                    when (target) {
-                        0 -> display.copy(digitColor = c.toArgb(), digitRainbow = false)
-                        1 -> display.copy(backgroundColor = c.toArgb(), surfaceRainbow = false)
-                        2 -> display.copy(accentColor = c.toArgb(), accentRainbow = false)
-                        else -> display.copy(wakeColor = c.toArgb(), wakeRainbow = false)
+                    Body("24 hour clock")
+                    Toggle(display.use24Hour, accent, width = 64) {
+                        onChange(display.copy(use24Hour = !display.use24Hour))
                     }
-                )
-            }
+                }
 
-            // Opacity only means something for the numbers, where it dims them
-            // against the background. On the background itself and on the accent
-            // it would be a control that visibly does nothing.
-            ColorOpacityPicker(
-                color = current,
-                onChange = ::apply,
-                showOpacity = target == 0,
-            )
-            ColorSwatchRow(
-                selected = current,
-                onPick = ::apply,
-                rainbowSelected = rainbowOn,
-                onPickRainbow = {
+                Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Body("Night darkness")
+                        Body("${(display.nightDim * 100).toInt()}%", DC.ink(0.45f))
+                    }
+                    Track(display.nightDim, accent) { onChange(display.copy(nightDim = it)) }
+                    Caption("How far the screen is painted over once the clock sits idle at night.")
+                }
+
+                Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
+
+                SectionLabel("COLORS", 15, 0.5f)
+
+                // One picker, three targets. Three stacked pickers would be the
+                // obvious layout and would push everything else off the sheet.
+                var target by remember { mutableIntStateOf(0) }
+                Row(horizontalArrangement = Arrangement.spacedBy(du(10))) {
+                    listOf("Numbers", "Background", "Accent", "Wake light").forEachIndexed { index, name ->
+                        Chip(name, target == index, accent, hPad = 22, fontSize = 16) { target = index }
+                    }
+                }
+
+                val current = when (target) {
+                    0 -> Color(display.digitColor)
+                    1 -> Color(display.backgroundColor)
+                    2 -> Color(display.accentColor)
+                    else -> Color(display.wakeColor)
+                }
+                val rainbowOn = when (target) {
+                    0 -> display.digitRainbow
+                    1 -> display.surfaceRainbow
+                    2 -> display.accentRainbow
+                    else -> display.wakeRainbow
+                }
+
+                // Choosing a colour always turns rainbow off for that target: the
+                // two are the same setting, not two settings that could disagree.
+                fun apply(c: Color) {
                     onChange(
                         when (target) {
-                            0 -> display.copy(digitRainbow = true)
-                            1 -> display.copy(surfaceRainbow = true)
-                            2 -> display.copy(accentRainbow = true)
-                            else -> display.copy(wakeRainbow = true)
+                            0 -> display.copy(digitColor = c.toArgb(), digitRainbow = false)
+                            1 -> display.copy(backgroundColor = c.toArgb(), surfaceRainbow = false)
+                            2 -> display.copy(accentColor = c.toArgb(), accentRainbow = false)
+                            else -> display.copy(wakeColor = c.toArgb(), wakeRainbow = false)
                         }
                     )
-                },
-            )
-            if (rainbowOn) {
-                Caption("Cycling slowly through the spectrum. Pick a colour to stop.")
-            }
-            if (target == 3) {
+                }
+
+                // Opacity only means something for the numbers, where it dims them
+                // against the background. On the background itself and on the accent
+                // it would be a control that visibly does nothing.
+                ColorOpacityPicker(
+                    color = current,
+                    onChange = ::apply,
+                    showOpacity = target == 0,
+                )
+                ColorSwatchRow(
+                    selected = current,
+                    onPick = ::apply,
+                    rainbowSelected = rainbowOn,
+                    onPickRainbow = {
+                        onChange(
+                            when (target) {
+                                0 -> display.copy(digitRainbow = true)
+                                1 -> display.copy(surfaceRainbow = true)
+                                2 -> display.copy(accentRainbow = true)
+                                else -> display.copy(wakeRainbow = true)
+                            }
+                        )
+                    },
+                )
+                if (rainbowOn) {
+                    val isStatic = target == 0 && display.rainbowStatic
+
+                    if (target == 0) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(du(10))) {
+                            Chip("Cycling", !display.rainbowStatic, accent, hPad = 24, fontSize = 16) {
+                                onChange(display.copy(rainbowStatic = false))
+                            }
+                            Chip("Static", display.rainbowStatic, accent, hPad = 24, fontSize = 16) {
+                                onChange(display.copy(rainbowStatic = true))
+                            }
+                        }
+                        Caption(
+                            if (isStatic) {
+                                "The spectrum is laid across the display and stays put."
+                            } else {
+                                "The whole spread drifts round the wheel. Pick a colour to stop."
+                            }
+                        )
+                    } else {
+                        Caption("Cycling through the spectrum. Pick a colour to stop.")
+                    }
+
+                    if (!isStatic) {
+                        Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Body("Cycle")
+                                Body(
+                                    if (display.rainbowSeconds >= 60) {
+                                        "%.1f min".format(display.rainbowSeconds / 60f)
+                                    } else "${display.rainbowSeconds}s",
+                                    DC.ink(0.45f),
+                                )
+                            }
+                            Track(((display.rainbowSeconds - 20) / 880f).coerceIn(0f, 1f), accent) {
+                                onChange(display.copy(rainbowSeconds = (20 + it * 880f).toInt()))
+                            }
+                        }
+                    }
+
+                    if (target == 0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(du(10))) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Body(if (isStatic) "Width" else "Spread")
+                                Body(
+                                    if (display.rainbowSpread < 1f) "solid"
+                                    else if (isStatic) "${(display.rainbowSpread * 4f).toInt()}\u00B0"
+                                    else "${display.rainbowSpread.toInt()}\u00B0",
+                                    DC.ink(0.45f),
+                                )
+                            }
+                            Track((display.rainbowSpread / 90f).coerceIn(0f, 1f), accent) {
+                                onChange(display.copy(rainbowSpread = it * 90f))
+                            }
+                            Caption(
+                                when {
+                                    display.rainbowSpread < 1f -> "All digits share one colour."
+                                    isStatic -> "How much of the wheel the spread covers, starting from the colour above."
+                                    else -> "How far apart the digits sit on the colour wheel."
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (target == 3) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(du(16)),
+                    ) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(du(40)))
+                                .background(accent)
+                                .clickable(onClick = onPreviewWake)
+                                .padding(horizontal = du(30), vertical = du(14)),
+                        ) {
+                            Text(
+                                "PREVIEW WAKE LIGHT",
+                                style = TextStyle(
+                                    color = Color(0xFF0B0B0C),
+                                    fontSize = su(16),
+                                    letterSpacing = su(16 * 0.16f),
+                                ),
+                            )
+                        }
+                        Caption("Opens the wake screen so you can see the whole ramp.")
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
+
+                SectionLabel("KIOSK", 15, 0.5f)
+
+                var homeAlias by remember(activity) {
+                    mutableStateOf(activity?.let { Kiosk.isHomeAliasEnabled(it) } == true)
+                }
                 Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(du(16)),
                 ) {
+                    Column(Modifier.width(du(500)), verticalArrangement = Arrangement.spacedBy(du(6))) {
+                        Body("Kiosk mode")
+                        Caption(
+                            if (homeAlias) {
+                                "The clock is the home screen. Home returns here and Back " +
+                                    "does nothing, so it cannot be closed by accident."
+                            } else {
+                                "Off. The tablet uses its normal launcher and the clock can " +
+                                    "be exited like any other app."
+                            }
+                        )
+                    }
+                    Toggle(homeAlias, accent, width = 64) {
+                        val next = !homeAlias
+                        activity?.let { Kiosk.setHomeAlias(it, next) }
+                        homeAlias = next
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.width(du(500)), verticalArrangement = Arrangement.spacedBy(du(6))) {
+                        Body(if (deviceOwner) "System bars blocked" else "System bars can still flash")
+                        Caption(
+                            if (deviceOwner) {
+                                "Lock task is active. Releasing hands the tablet back and " +
+                                    "cannot be undone from here."
+                            } else {
+                                "An edge swipe can still reveal the navigation bar. Blocking " +
+                                    "it entirely needs device owner, granted once over adb."
+                            }
+                        )
+                    }
+                    if (deviceOwner && activity != null) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(du(40)))
+                                .border(
+                                    du(1).coerceAtLeast(1.dp),
+                                    Color(0xFFC47B6A),
+                                    RoundedCornerShape(du(40)),
+                                )
+                                .clickable { Kiosk.release(activity) }
+                                .padding(horizontal = du(26), vertical = du(14)),
+                        ) {
+                            Text(
+                                "RELEASE",
+                                style = TextStyle(
+                                    color = Color(0xFFC47B6A),
+                                    fontSize = su(15),
+                                    letterSpacing = su(15 * 0.2f),
+                                ),
+                            )
+                        }
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
+
+                SectionLabel("ABOUT", 15, 0.5f)
+                Column(verticalArrangement = Arrangement.spacedBy(du(8))) {
+                    Body("AlarmHub $version")
+                    Caption("Created by KindCode")
+                    Caption(
+                        "Bugs and feature requests: $SUPPORT_CONTACT"
+                    )
+                    Caption(
+                        "Runs entirely offline. No internet, location, camera or " +
+                            "microphone permission is requested."
+                    )
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(du(40)))
                             .background(accent)
-                            .clickable(onClick = onPreviewWake)
-                            .padding(horizontal = du(30), vertical = du(14)),
+                            .clickable(onClick = onClose)
+                            .padding(horizontal = du(32), vertical = du(14)),
                     ) {
                         Text(
-                            "PREVIEW WAKE LIGHT",
+                            "DONE",
                             style = TextStyle(
                                 color = Color(0xFF0B0B0C),
                                 fontSize = su(16),
-                                letterSpacing = su(16 * 0.16f),
+                                letterSpacing = su(16 * 0.2f),
                             ),
                         )
                     }
-                    Caption("Opens the wake screen so you can see the whole ramp.")
-                }
-            }
-
-            Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
-
-            SectionLabel("KIOSK", 15, 0.5f)
-
-            var homeAlias by remember(activity) {
-                mutableStateOf(activity?.let { Kiosk.isHomeAliasEnabled(it) } == true)
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.width(du(500)), verticalArrangement = Arrangement.spacedBy(du(6))) {
-                    Body("Kiosk mode")
-                    Caption(
-                        if (homeAlias) {
-                            "The clock is the home screen. Home returns here and Back " +
-                                "does nothing, so it cannot be closed by accident."
-                        } else {
-                            "Off. The tablet uses its normal launcher and the clock can " +
-                                "be exited like any other app."
-                        }
-                    )
-                }
-                Toggle(homeAlias, accent, width = 64) {
-                    val next = !homeAlias
-                    activity?.let { Kiosk.setHomeAlias(it, next) }
-                    homeAlias = next
-                }
-            }
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.width(du(500)), verticalArrangement = Arrangement.spacedBy(du(6))) {
-                    Body(if (deviceOwner) "System bars blocked" else "System bars can still flash")
-                    Caption(
-                        if (deviceOwner) {
-                            "Lock task is active. Releasing hands the tablet back and " +
-                                "cannot be undone from here."
-                        } else {
-                            "An edge swipe can still reveal the navigation bar. Blocking " +
-                                "it entirely needs device owner, granted once over adb."
-                        }
-                    )
-                }
-                if (deviceOwner && activity != null) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(du(40)))
-                            .border(
-                                du(1).coerceAtLeast(1.dp),
-                                Color(0xFFC47B6A),
-                                RoundedCornerShape(du(40)),
-                            )
-                            .clickable { Kiosk.release(activity) }
-                            .padding(horizontal = du(26), vertical = du(14)),
-                    ) {
-                        Text(
-                            "RELEASE",
-                            style = TextStyle(
-                                color = Color(0xFFC47B6A),
-                                fontSize = su(15),
-                                letterSpacing = su(15 * 0.2f),
-                            ),
-                        )
-                    }
-                }
-            }
-
-            Box(Modifier.fillMaxWidth().height(du(1).coerceAtLeast(1.dp)).background(DC.ink(0.08f)))
-
-            SectionLabel("ABOUT", 15, 0.5f)
-            Column(verticalArrangement = Arrangement.spacedBy(du(8))) {
-                Body("AlarmHub $version")
-                Caption("Created by KindCode")
-                Caption(
-                    "Bugs and feature requests: $SUPPORT_CONTACT"
-                )
-                Caption(
-                    "Runs entirely offline. No internet, location, camera or " +
-                        "microphone permission is requested."
-                )
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(du(40)))
-                        .background(accent)
-                        .clickable(onClick = onClose)
-                        .padding(horizontal = du(32), vertical = du(14)),
-                ) {
-                    Text(
-                        "DONE",
-                        style = TextStyle(
-                            color = Color(0xFF0B0B0C),
-                            fontSize = su(16),
-                            letterSpacing = su(16 * 0.2f),
-                        ),
-                    )
                 }
             }
         }

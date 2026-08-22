@@ -20,6 +20,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,12 +97,14 @@ fun AlarmsPanel(
                     .padding(horizontal = du(64)),
             ) {
                 alarms.forEach { alarm ->
-                    AlarmRow(alarm, accent, use24Hour, onEdit = { editing = alarm }) {
-                        onChange(
-                            alarms.map {
-                                if (it.id == alarm.id) it.copy(enabled = !it.enabled) else it
-                            }
-                        )
+                    SwipeToDelete(onDelete = { onChange(alarms.filterNot { it.id == alarm.id }) }) {
+                        AlarmRow(alarm, accent, use24Hour, onEdit = { editing = alarm }) {
+                            onChange(
+                                alarms.map {
+                                    if (it.id == alarm.id) it.copy(enabled = !it.enabled) else it
+                                }
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(du(40)))
@@ -229,15 +245,17 @@ private fun AlarmRow(
                 verticalArrangement = Arrangement.spacedBy(du(5)),
             ) {
                 Text(
-                    alarm.whenLabel(),
+                    alarm.label.ifBlank { alarm.whenLabel() },
                     style = TextStyle(
-                        color = if (on) DC.ink(0.72f) else DC.ink(0.3f),
-                        fontSize = su(24),
-                        fontWeight = FontWeight.Light,
+                        color = if (on) DC.ink(0.85f) else DC.ink(0.34f),
+                        fontSize = su(26),
+                        fontWeight = FontWeight.Normal,
                     ),
+                    maxLines = 1,
                 )
                 Text(
-                    alarm.tone.uppercase(Locale.getDefault()) +
+                    alarm.whenLabel().uppercase(Locale.getDefault()) + " · " +
+                        alarm.tone.uppercase(Locale.getDefault()) +
                         if (alarm.wakeLight) " · LIGHT ${alarm.leadMinutes}M" else "",
                     style = TextStyle(
                         color = DC.ink(0.36f),
@@ -287,6 +305,28 @@ private fun AlarmEditor(
             verticalArrangement = Arrangement.spacedBy(du(20)),
         ) {
             SectionLabel(if (draft.id == 0L) "NEW ALARM" else "EDIT ALARM", 19, 0.5f)
+
+            BasicTextField(
+                value = a.label,
+                onValueChange = { a = a.copy(label = it.take(28)) },
+                singleLine = true,
+                textStyle = TextStyle(color = DC.ink, fontSize = su(30)),
+                cursorBrush = SolidColor(accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(du(12)))
+                    .background(DC.ink(0.06f))
+                    .padding(horizontal = du(20), vertical = du(16)),
+                decorationBox = { inner ->
+                    if (a.label.isEmpty()) {
+                        Text(
+                            "Name this alarm, for example SCHOOL",
+                            style = TextStyle(color = DC.ink(0.3f), fontSize = su(30)),
+                        )
+                    }
+                    inner()
+                },
+            )
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -577,5 +617,106 @@ private fun RepeatArrow(glyph: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(glyph, style = TextStyle(color = DC.ink(0.4f), fontSize = su(30)))
+    }
+}
+
+/**
+ * Swipe an alarm left to reveal a bin, then either keep going to delete or tap
+ * the bin. Matches the gesture people already know from iOS mail and alarms.
+ *
+ * The drag consumes from the first press so it never reaches the panel
+ * navigation underneath, which would otherwise read a horizontal swipe here as
+ * a request to change screens.
+ */
+@Composable
+private fun SwipeToDelete(
+    onDelete: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val density = LocalDensity.current
+    val revealPx = with(density) { du(150).toPx() }
+    val commitPx = with(density) { du(520).toPx() }
+    val offset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    Box(Modifier.fillMaxWidth()) {
+        // The bin only earns its space once the row has actually moved.
+        if (offset.value < -2f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .padding(vertical = du(8))
+                    .clip(RoundedCornerShape(du(12)))
+                    .background(Color(0xFF7A2B24)),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Box(
+                    Modifier
+                        .padding(end = du(46))
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onDelete)
+                        .padding(du(16)),
+                ) {
+                    BinIcon(size = du(44))
+                }
+            }
+        }
+
+        Box(
+            Modifier
+                .offset { IntOffset(offset.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        var dragged = false
+                        while (true) {
+                            val change = awaitPointerEvent().changes.firstOrNull() ?: break
+                            if (!change.pressed) break
+                            val dx = change.position.x - down.position.x
+                            val dy = change.position.y - down.position.y
+                            if (!dragged && kotlin.math.abs(dx) > kotlin.math.abs(dy) &&
+                                kotlin.math.abs(dx) > 12f
+                            ) {
+                                dragged = true
+                            }
+                            if (dragged) {
+                                change.consume()
+                                scope.launch {
+                                    offset.snapTo((offset.value + change.positionChange().x)
+                                        .coerceIn(-commitPx * 1.2f, 0f))
+                                }
+                            }
+                        }
+                        if (dragged) {
+                            when {
+                                offset.value <= -commitPx -> onDelete()
+                                offset.value <= -revealPx / 2f ->
+                                    scope.launch { offset.animateTo(-revealPx) }
+                                else -> scope.launch { offset.animateTo(0f) }
+                            }
+                        }
+                    }
+                }
+        ) { content() }
+    }
+}
+
+/** Drawn rather than a glyph, so it cannot fall back to a missing-font box. */
+@Composable
+private fun BinIcon(size: androidx.compose.ui.unit.Dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = w * 0.09f
+        val bodyTop = h * 0.28f
+        drawLine(Color.White, Offset(w * 0.10f, bodyTop), Offset(w * 0.90f, bodyTop), stroke)
+        drawLine(Color.White, Offset(w * 0.38f, h * 0.14f), Offset(w * 0.62f, h * 0.14f), stroke)
+        drawLine(Color.White, Offset(w * 0.38f, h * 0.14f), Offset(w * 0.38f, bodyTop), stroke)
+        drawLine(Color.White, Offset(w * 0.62f, h * 0.14f), Offset(w * 0.62f, bodyTop), stroke)
+        drawLine(Color.White, Offset(w * 0.20f, bodyTop), Offset(w * 0.27f, h * 0.90f), stroke)
+        drawLine(Color.White, Offset(w * 0.80f, bodyTop), Offset(w * 0.73f, h * 0.90f), stroke)
+        drawLine(Color.White, Offset(w * 0.27f, h * 0.90f), Offset(w * 0.73f, h * 0.90f), stroke)
+        drawLine(Color.White, Offset(w * 0.42f, h * 0.42f), Offset(w * 0.44f, h * 0.78f), stroke * 0.8f)
+        drawLine(Color.White, Offset(w * 0.58f, h * 0.42f), Offset(w * 0.56f, h * 0.78f), stroke * 0.8f)
     }
 }

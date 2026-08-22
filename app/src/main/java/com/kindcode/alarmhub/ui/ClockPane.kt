@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,7 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +54,8 @@ fun ClockPane(
     surfaceColor: Color,
     rainbow: Boolean,
     rainbowPhase: Float,
+    rainbowSpread: Float,
+    rainbowStatic: Boolean,
     reducedMotion: Boolean,
     accent: Color,
     nextAlarmLabel: String,
@@ -61,26 +70,13 @@ fun ClockPane(
             // Fixed height for both faces. Letting each face size itself moved
             // the status line up and down when the style changed.
             Box(Modifier.height(du(684)), contentAlignment = Alignment.Center) {
-                when (style) {
-                    ClockStyle.FLIP -> Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(du(20)),
-                    ) {
-                        FlipCard(hh, corner = meridiem, reducedMotion = reducedMotion, digitColor = digitColor,
-                        cardColor = surfaceColor)
-                        FlipCard(mm, corner = null, reducedMotion = reducedMotion, digitColor = digitColor,
-                        cardColor = surfaceColor)
-                    }
-
-                    ClockStyle.SEGMENT -> SegmentFace(
-                        hh = hh,
-                        mm = mm,
-                        meridiem = meridiem,
-                        digitColor = digitColor,
-                        rainbow = rainbow,
-                        rainbowPhase = rainbowPhase,
-                    )
-                }
+                ClockFace(
+                    hh = hh, mm = mm, meridiem = meridiem, style = style,
+                    digitColor = digitColor, surfaceColor = surfaceColor,
+                    rainbow = rainbow, rainbowPhase = rainbowPhase,
+                    rainbowSpread = rainbowSpread, rainbowStatic = rainbowStatic,
+                    reducedMotion = reducedMotion,
+                )
             }
 
             Spacer(Modifier.height(du(20)))
@@ -121,6 +117,128 @@ fun ClockPane(
  * drift is a pure function of [rainbowPhase], which the caller steps once per
  * second, so this stays as cheap to draw as the fixed-colour version.
  */
+/**
+ * Just the face, with no status line and no fixed height, so both the clock
+ * itself and the live preview in settings render the identical thing. A
+ * hand-drawn approximation in the settings sheet would drift out of step with
+ * the real one the first time either changed.
+ */
+@Composable
+fun ClockFace(
+    hh: String,
+    mm: String,
+    meridiem: String?,
+    style: ClockStyle,
+    digitColor: Color,
+    surfaceColor: Color,
+    rainbow: Boolean,
+    rainbowPhase: Float,
+    rainbowSpread: Float,
+    rainbowStatic: Boolean,
+    reducedMotion: Boolean,
+) {
+    when (style) {
+        ClockStyle.FLIP -> {
+            fun cardColour(step: Int): Color = when {
+                !rainbow -> digitColor
+                rainbowStatic -> Color.hsv(
+        (hueOf(digitColor) + step * rainbowSpread) % 360f, 0.85f, 1f,
+                )
+                else -> Color.hsv(
+        ((rainbowPhase * 360f) + step * rainbowSpread) % 360f,
+        0.85f, 1f,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(du(20)),
+            ) {
+                // Steps 0 and 2 so the two cards span the same slice
+                // of the wheel the four LED digits do.
+                FlipCard(
+        hh, corner = meridiem, reducedMotion = reducedMotion,
+        digitColor = cardColour(0), cardColor = surfaceColor,
+                )
+                FlipCard(
+        mm, corner = null, reducedMotion = reducedMotion,
+        digitColor = cardColour(2), cardColor = surfaceColor,
+                )
+            }
+        }
+
+        ClockStyle.SEGMENT -> SegmentFace(
+            hh = hh,
+            mm = mm,
+            meridiem = meridiem,
+            digitColor = digitColor,
+            rainbow = rainbow,
+            rainbowPhase = rainbowPhase,
+            rainbowSpread = rainbowSpread,
+            rainbowStatic = rainbowStatic,
+        )
+    }
+
+}
+
+/**
+ * A scaled-down live face for the settings sheet. Changing a colour behind a
+ * near-opaque sheet gave no feedback at all, so the sheet shows the result.
+ */
+@Composable
+fun ClockFacePreview(
+    hh: String,
+    mm: String,
+    meridiem: String?,
+    style: ClockStyle,
+    digitColor: Color,
+    surfaceColor: Color,
+    pageColor: Color,
+    rainbow: Boolean,
+    rainbowPhase: Float,
+    rainbowSpread: Float,
+    rainbowStatic: Boolean,
+    reducedMotion: Boolean,
+) {
+    val boxH = du(250)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(boxH)
+            .clip(RoundedCornerShape(du(16)))
+            .background(pageColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            // Render at full size and scale the layer down, so the preview is
+            // the same composable the clock uses rather than a smaller variant
+            // with its own layout rules.
+            val fullW = du(1240)
+            val fullH = du(700)
+            val scale = minOf(
+                maxWidth.value / fullW.value,
+                maxHeight.value / fullH.value,
+            )
+            Box(
+                Modifier
+                    .requiredSize(fullW, fullH)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                ClockFace(
+                    hh = hh, mm = mm, meridiem = meridiem, style = style,
+                    digitColor = digitColor, surfaceColor = surfaceColor,
+                    rainbow = rainbow, rainbowPhase = rainbowPhase,
+                    rainbowSpread = rainbowSpread, rainbowStatic = rainbowStatic,
+                    reducedMotion = reducedMotion,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SegmentFace(
     hh: String,
@@ -129,6 +247,8 @@ private fun SegmentFace(
     digitColor: Color,
     rainbow: Boolean,
     rainbowPhase: Float,
+    rainbowSpread: Float,
+    rainbowStatic: Boolean,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
 
@@ -150,10 +270,23 @@ private fun SegmentFace(
         val digits = listOf(hh.getOrNull(0), hh.getOrNull(1), mm.getOrNull(0), mm.getOrNull(1))
             .map { it?.digitToIntOrNull() }
 
-        fun colourFor(index: Int): Color = if (!rainbow) digitColor else {
+        // Static mode tints the finished row with a single gradient, so the
+        // spectrum runs continuously across the digits instead of stepping from
+        // one solid digit to the next. The segments are drawn white first so the
+        // tint lands at full strength.
+        val span = (rainbowSpread * 4f).coerceIn(0f, 360f)
+        val staticBrush = if (rainbow && rainbowStatic) {
+            val start = hueOf(digitColor)
+            Brush.horizontalGradient(
+                (0..8).map { Color.hsv((start + it * span / 8f) % 360f, 0.88f, 1f) }
+            )
+        } else null
+
+        fun colourFor(index: Int): Color = if (staticBrush != null) Color.White
+        else if (!rainbow) digitColor else {
             // Spread the four digits across part of the wheel so they read as
             // one gradient rather than four unrelated colours.
-            Color.hsv(((rainbowPhase * 360f) + index * 38f) % 360f, 0.85f, 1f)
+            Color.hsv(((rainbowPhase * 360f) + index * rainbowSpread) % 360f, 0.85f, 1f)
         }
 
         // The meridiem rides inside the centred row, the way it is moulded into
@@ -163,7 +296,16 @@ private fun SegmentFace(
         // perfectly centred row still reads as sitting right of centre.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.offset(x = -h * 0.12f),
+            modifier = Modifier
+                .offset(x = -h * 0.12f)
+                .then(
+                    if (staticBrush == null) Modifier else Modifier
+                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(brush = staticBrush, blendMode = BlendMode.SrcIn)
+                        }
+                ),
         ) {
             if (meridiem != null) {
                 // offset shifts where this draws without changing the width the
@@ -239,3 +381,10 @@ private val MONTHS = listOf(
 
 fun dateLabel(now: LocalDateTime): String =
     "${DAYS[now.dayOfWeek.value - 1]} ${MONTHS[now.monthValue - 1]} ${now.dayOfMonth}"
+
+/** Hue in degrees, used as the starting point for a static spread. */
+private fun hueOf(color: Color): Float {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    return hsv[0]
+}

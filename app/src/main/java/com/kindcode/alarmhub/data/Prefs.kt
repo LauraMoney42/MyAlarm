@@ -106,6 +106,20 @@ data class DisplayConfig(
     val surfaceRainbow: Boolean = false,
     val accentRainbow: Boolean = false,
     val wakeRainbow: Boolean = false,
+    /**
+     * Degrees of hue between one digit and the next. Zero makes all four the
+     * same colour, so "solid but cycling" and "gradient across the face" are
+     * the same setting at two ends of one slider.
+     */
+    val rainbowSpread: Float = 38f,
+    /** Seconds for one full trip round the hue wheel. */
+    val rainbowSeconds: Int = 240,
+    /**
+     * Static lays the spectrum across the display and leaves it there, the way
+     * a moulded RGB clock does. Cycling drifts the whole thing instead. Same
+     * rainbow, two temperaments.
+     */
+    val rainbowStatic: Boolean = false,
 )
 
 data class SleepConfig(
@@ -223,6 +237,9 @@ class Prefs(context: Context) {
         surfaceRainbow = sp.getBoolean("d_bg_rainbow", false),
         accentRainbow = sp.getBoolean("d_accent_rainbow", false),
         wakeRainbow = sp.getBoolean("d_wake_rainbow", false),
+        rainbowSpread = sp.getFloat("d_rainbow_spread", 38f),
+        rainbowSeconds = sp.getInt("d_rainbow_seconds", 240),
+        rainbowStatic = sp.getBoolean("d_rainbow_static", false),
     )
 
     fun setDisplay(cfg: DisplayConfig) {
@@ -243,6 +260,9 @@ class Prefs(context: Context) {
             .putBoolean("d_bg_rainbow", cfg.surfaceRainbow)
             .putBoolean("d_accent_rainbow", cfg.accentRainbow)
             .putBoolean("d_wake_rainbow", cfg.wakeRainbow)
+            .putFloat("d_rainbow_spread", cfg.rainbowSpread)
+            .putInt("d_rainbow_seconds", cfg.rainbowSeconds)
+            .putBoolean("d_rainbow_static", cfg.rainbowStatic)
             .apply()
         _display.value = cfg
     }
