@@ -343,7 +343,7 @@ fun SettingsSheet(
                     }
                     Toggle(homeAlias, accent, width = 64) {
                         val next = !homeAlias
-                        activity?.let { Kiosk.setHomeAlias(it, next) }
+                        activity?.let { Kiosk.setKiosk(it, next) }
                         homeAlias = next
                     }
                 }

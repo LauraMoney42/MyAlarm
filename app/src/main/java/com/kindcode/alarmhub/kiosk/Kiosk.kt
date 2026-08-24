@@ -42,6 +42,27 @@ object Kiosk {
         return state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
     }
 
+    /**
+     * The everyday on/off switch.
+     *
+     * Turning kiosk off has to stop lock task as well as give up the home role.
+     * Doing only the latter left the tablet pinned with no way out of the app
+     * except [release], which is a much bigger hammer than the toggle implies.
+     *
+     * Device owner is deliberately kept, so kiosk can be switched back on
+     * without another trip through adb. [release] is what surrenders it.
+     */
+    fun setKiosk(activity: Activity, enabled: Boolean) {
+        setHomeAlias(activity, enabled)
+        if (enabled) {
+            enter(activity)
+            return
+        }
+        runCatching { activity.stopLockTask() }
+        if (!isDeviceOwner(activity)) return
+        runCatching { dpm(activity).setStatusBarDisabled(admin(activity), false) }
+    }
+
     fun setHomeAlias(ctx: Context, enabled: Boolean) {
         runCatching {
             ctx.packageManager.setComponentEnabledSetting(

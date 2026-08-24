@@ -13,8 +13,8 @@ android {
         // minSdk 26 covers Android 8 and up. The PRITOM L8 is well above this.
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.3.1"
     }
 
     buildTypes {
