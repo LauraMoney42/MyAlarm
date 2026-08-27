@@ -21,12 +21,14 @@ class AlarmHubApp : Application() {
         prefs = Prefs(this)
 
         val nm = getSystemService(NotificationManager::class.java)
+        // Exists only to carry a full-screen intent when the clock is not
+        // already on screen. Silent, and never posted in normal use.
         nm.createNotificationChannel(
             NotificationChannel(CH_ALARM, "Alarm", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Wake alarm and warm wake light"
-                // The activity plays the tone itself so the fade-in can be controlled.
+                description = "Brings the alarm screen up when the clock is not showing"
                 setSound(null, null)
                 enableVibration(false)
+                setShowBadge(false)
             }
         )
         nm.createNotificationChannel(

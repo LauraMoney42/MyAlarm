@@ -1,9 +1,6 @@
 package com.kindcode.alarmhub
 
-import android.Manifest
-import android.app.NotificationManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -14,7 +11,6 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -57,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -101,10 +96,18 @@ private val SETTLE = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 
 class MainActivity : ComponentActivity() {
 
-    private val app: AlarmHubApp get() = application as AlarmHubApp
+    companion object {
+        /**
+         * Whether the clock is actually on screen. The alarm receiver uses this
+         * to decide if it needs to fall back to a notification, so it must be
+         * accurate rather than merely close.
+         */
+        @Volatile
+        var onScreen: Boolean = false
+            private set
+    }
 
-    private val notifPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val app: AlarmHubApp get() = application as AlarmHubApp
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,13 +127,6 @@ class MainActivity : ComponentActivity() {
             insets
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
         setContent {
             HubRoot(
                 app = app,
@@ -140,6 +136,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onPause() {
+        onScreen = false
+        super.onPause()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
@@ -147,6 +148,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        onScreen = true
         hideSystemBars()
         // Only does anything once the app is device owner. Idempotent, so it is
         // safe to re-assert every time the clock comes forward.
@@ -324,7 +326,6 @@ private fun HubRoot(
             // The full-screen intent has done its job of bringing us forward;
             // leaving the notification up just stacks a banner over the alarm
             // screen the user is already looking at.
-            clearAlarmNotification(context)
         } else {
             AlarmRinger.stop()
         }
@@ -596,14 +597,12 @@ private fun HubRoot(
                             val at = System.currentTimeMillis() + 9 * 60_000L
                             app.prefs.setSnooze(at, firingAlarm.id)
                             app.prefs.setFiring(0L)
-                            clearAlarmNotification(context)
-                            AlarmScheduler.reschedule(context, alarms, at, firingAlarm.id)
+                                            AlarmScheduler.reschedule(context, alarms, at, firingAlarm.id)
                         },
                         onStop = {
                             app.prefs.setSnooze(0L, 0L)
                             app.prefs.setFiring(0L)
-                            clearAlarmNotification(context)
-                            AlarmScheduler.reschedule(context, alarms, 0L, 0L)
+                                            AlarmScheduler.reschedule(context, alarms, 0L, 0L)
                         },
                     )
                 }
@@ -729,6 +728,3 @@ private fun soundStatus(
     else -> "${cfg.voice.displayName} · %d:%02d".format(secondsLeft / 60, secondsLeft % 60)
 }
 
-private fun clearAlarmNotification(context: Context) {
-    (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(1)
-}
