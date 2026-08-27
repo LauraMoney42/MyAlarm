@@ -70,48 +70,7 @@ fun RingScreen(
 
     Box(Modifier.fillMaxSize().background(Color(0xFF08060A))) {
 
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.00f to stop(14f, 0.23f, 1.00f).copy(alpha = fieldOp),
-                            0.22f to stop(8f, 0.60f, 1.00f).copy(alpha = fieldOp),
-                            0.44f to stop(0f, 0.83f, 1.00f).copy(alpha = fieldOp),
-                            0.66f to stop(-6f, 0.93f, 0.88f).copy(alpha = fieldOp),
-                            0.86f to stop(-10f, 0.95f, 0.36f).copy(alpha = fieldOp),
-                            1.00f to stop(-12f, 0.90f, 0.09f).copy(alpha = fieldOp),
-                        ),
-                        center = Offset(
-                            with(density) { du(640).toPx() },
-                            with(density) { du(928).toPx() },
-                        ),
-                        radius = with(density) { du(1050).toPx() },
-                    )
-                )
-        )
-
-        // The horizon glow, sitting mostly below the bottom edge.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.00f to stop(16f, 0.05f, 1.00f).copy(alpha = glowOp),
-                            0.26f to stop(12f, 0.36f, 1.00f).copy(alpha = glowOp * 0.9f),
-                            0.50f to stop(4f, 0.72f, 1.00f).copy(alpha = glowOp * 0.62f),
-                            1.00f to stop(0f, 0.85f, 1.00f).copy(alpha = 0f),
-                        ),
-                        center = Offset(
-                            with(density) { du(640).toPx() },
-                            with(density) { du(1010).toPx() },
-                        ),
-                        radius = with(density) { du(760).toPx() },
-                    )
-                )
-        )
+        WakeField(baseColor = baseColor, progress = wakeProgress)
 
         Column(
             Modifier.fillMaxSize().padding(horizontal = du(70)),
@@ -243,6 +202,76 @@ private fun Pill(
                 fontSize = su(21),
                 letterSpacing = su(21 * 0.12f),
             ),
+        )
+    }
+}
+
+/**
+ * The warm light itself: a sunrise sitting low and mostly below the bottom
+ * edge, so it reads as light coming up past a horizon rather than a lamp
+ * switching on.
+ *
+ * Shared between the ring screen and the lead-in before it, because they are
+ * the same light at different points in the same climb. Keeping them separate
+ * meant the ramp only ever appeared once the alarm was already sounding, which
+ * is exactly too late to be a wake light.
+ */
+@Composable
+fun WakeField(
+    baseColor: Color,
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(baseColor.toArgb(), hsv)
+    fun stop(hueShift: Float, sat: Float, value: Float) =
+        Color.hsv((hsv[0] + hueShift + 360f) % 360f, sat, value)
+
+    val p = progress.coerceIn(0f, 1f)
+    val fieldOp = 0.18f + Math.pow(p.toDouble(), 0.75).toFloat() * 0.82f
+    val glowOp = 0.05f + p * p * 0.95f
+
+    Box(modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to stop(14f, 0.23f, 1.00f).copy(alpha = fieldOp),
+                            0.22f to stop(8f, 0.60f, 1.00f).copy(alpha = fieldOp),
+                            0.44f to stop(0f, 0.83f, 1.00f).copy(alpha = fieldOp),
+                            0.66f to stop(-6f, 0.93f, 0.88f).copy(alpha = fieldOp),
+                            0.86f to stop(-10f, 0.95f, 0.36f).copy(alpha = fieldOp),
+                            1.00f to stop(-12f, 0.90f, 0.09f).copy(alpha = fieldOp),
+                        ),
+                        center = Offset(
+                            with(density) { du(640).toPx() },
+                            with(density) { du(928).toPx() },
+                        ),
+                        radius = with(density) { du(1050).toPx() },
+                    )
+                )
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to stop(16f, 0.05f, 1.00f).copy(alpha = glowOp),
+                            0.26f to stop(12f, 0.36f, 1.00f).copy(alpha = glowOp * 0.9f),
+                            0.50f to stop(4f, 0.72f, 1.00f).copy(alpha = glowOp * 0.62f),
+                            1.00f to stop(0f, 0.85f, 1.00f).copy(alpha = 0f),
+                        ),
+                        center = Offset(
+                            with(density) { du(640).toPx() },
+                            with(density) { du(1010).toPx() },
+                        ),
+                        radius = with(density) { du(760).toPx() },
+                    )
+                )
         )
     }
 }

@@ -71,6 +71,7 @@ import com.kindcode.alarmhub.ui.LocalDesignScale
 import com.kindcode.alarmhub.ui.RingScreen
 import com.kindcode.alarmhub.ui.SettingsSheet
 import com.kindcode.alarmhub.ui.SoundsPanel
+import com.kindcode.alarmhub.ui.WakeField
 import com.kindcode.alarmhub.ui.WeatherPanel
 import com.kindcode.alarmhub.ui.computeLight
 import com.kindcode.alarmhub.ui.dateLabel
@@ -465,6 +466,13 @@ private fun HubRoot(
                         }
                     }
             ) {
+                // The wake light, before the alarm rather than only during it.
+                // It sits under the clock so the time stays readable while the
+                // room fills.
+                if (light.mode == LightMode.WAKE) {
+                    WakeField(baseColor = wakeBase, progress = light.wakeProgress)
+                }
+
                 // Clock recedes rather than disappearing, as in the design.
                 Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - p * 0.31f }) {
                     ClockPane(

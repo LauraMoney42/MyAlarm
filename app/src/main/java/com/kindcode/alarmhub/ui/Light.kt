@@ -47,8 +47,10 @@ fun computeLight(
                 wakeProgress = p,
                 // Curved so the last third does most of the visible lifting.
                 brightness = 0.02f + 0.98f * p.toDouble().pow(1.7).toFloat(),
-                // Opens from near-black to fully clear.
-                scrim = (display.nightDim * (1f - p.toDouble().pow(0.55).toFloat()))
+                // Opens from real darkness to fully clear. Starting from the
+                // night dim setting meant that with a light dim value there was
+                // barely anything to lift, so the sunrise had nothing to do.
+                scrim = (0.88f * (1f - p.toDouble().pow(0.55).toFloat()))
                     .coerceIn(0f, 0.92f),
             )
         }
